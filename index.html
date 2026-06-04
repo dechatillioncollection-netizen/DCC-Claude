@@ -50,6 +50,25 @@
     /* ── Layout ── */
     main { max-width: 720px; margin: 0 auto; padding: 20px 16px 80px; }
 
+    /* ── Section divider ── */
+    .section-title {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--text-muted);
+      margin: 36px 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
     /* ── Summary boxes ── */
     .summary-grid { display: grid; gap: 12px; margin-bottom: 20px; }
     .summary-box {
@@ -378,8 +397,166 @@
     .duty-status-badge.off { background: #f3f4f6; color: var(--text-muted); }
     .duty-status-badge.on  { background: var(--green-light); color: var(--green); }
 
+    /* ── Hours Tracker ── */
+    .tracker-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .tracker-header {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .tracker-header-left h2 {
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .tracker-header-left p {
+      font-size: .78rem;
+      opacity: .75;
+      margin-top: 2px;
+    }
+    .cycle-selector {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cycle-selector select {
+      border: 1.5px solid rgba(255,255,255,.3);
+      border-radius: 8px;
+      background: rgba(255,255,255,.12);
+      color: #fff;
+      padding: 6px 10px;
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .cycle-selector select option { background: #1e3a5f; color: #fff; }
+    .cycle-nav-btn {
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.25);
+      color: #fff;
+      border-radius: 7px;
+      width: 30px;
+      height: 30px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .9rem;
+      transition: background .15s;
+    }
+    .cycle-nav-btn:hover { background: rgba(255,255,255,.25); }
+
+    .tracker-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .tracker-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .85rem;
+    }
+    .tracker-table th {
+      background: var(--surface2);
+      padding: 9px 12px;
+      text-align: left;
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .tracker-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .tracker-table tr:last-child td { border-bottom: none; }
+    .tracker-table tr:hover td { background: #fafbfc; }
+    .tracker-table tr.today td { background: #eff6ff; }
+    .tracker-table tr.today td:first-child {
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .time-input {
+      width: 88px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      padding: 5px 8px;
+      font-size: .84rem;
+      color: var(--text);
+      background: var(--surface);
+      transition: border-color .15s;
+    }
+    .time-input:focus { outline: none; border-color: var(--primary); }
+    .time-input::-webkit-calendar-picker-indicator { opacity: .5; cursor: pointer; }
+
+    .hours-cell {
+      font-weight: 600;
+      color: var(--text);
+      min-width: 60px;
+      text-align: right;
+    }
+    .hours-cell.has-hours { color: var(--primary); }
+    .hours-cell.empty-hours { color: var(--border); }
+
+    .tracker-footer {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .tracker-footer-label {
+      font-size: .8rem;
+      opacity: .8;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .tracker-total {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+    .tracker-total span {
+      font-size: .75rem;
+      font-weight: 500;
+      opacity: .7;
+      margin-left: 4px;
+    }
+
+    .date-cell {
+      white-space: nowrap;
+      font-size: .82rem;
+    }
+    .date-day {
+      font-weight: 600;
+    }
+    .date-weekday {
+      font-size: .7rem;
+      color: var(--text-muted);
+    }
+
     @media (max-width: 400px) {
       .staff-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+      .time-input { width: 76px; font-size: .78rem; }
+      .tracker-table th, .tracker-table td { padding: 6px 8px; }
     }
   </style>
 </head>
@@ -413,7 +590,7 @@
   <!-- Controls -->
   <div class="controls">
     <div class="filter-tabs">
-      <button class="filter-tab active" data-filter="all"    onclick="setFilter('all')">All Staff</button>
+      <button class="filter-tab active" data-filter="all"         onclick="setFilter('all')">All Staff</button>
       <button class="filter-tab"        data-filter="Housekeeping" onclick="setFilter('Housekeeping')">Housekeeping</button>
       <button class="filter-tab"        data-filter="Porters"      onclick="setFilter('Porters')">Porters</button>
     </div>
@@ -425,6 +602,40 @@
 
   <!-- Grid -->
   <div class="staff-grid" id="staffGrid"></div>
+
+  <!-- ── Hours Tracker ── -->
+  <div class="section-title">Monthly Hours Tracker</div>
+
+  <div class="tracker-card">
+    <div class="tracker-header">
+      <div class="tracker-header-left">
+        <h2>Work Hours</h2>
+        <p id="cycleLabel">26th – 25th Pay Cycle</p>
+      </div>
+      <div class="cycle-selector">
+        <button class="cycle-nav-btn" onclick="shiftCycle(-1)" title="Previous cycle">&#8249;</button>
+        <select id="cycleSelect" onchange="onCycleChange()"></select>
+        <button class="cycle-nav-btn" onclick="shiftCycle(1)"  title="Next cycle">&#8250;</button>
+      </div>
+    </div>
+    <div class="tracker-table-wrap">
+      <table class="tracker-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>On Duty</th>
+            <th>Off Duty</th>
+            <th style="text-align:right">Hours</th>
+          </tr>
+        </thead>
+        <tbody id="trackerBody"></tbody>
+      </table>
+    </div>
+    <div class="tracker-footer">
+      <div class="tracker-footer-label">Total Hours</div>
+      <div class="tracker-total" id="trackerTotal">0<span>hrs</span></div>
+    </div>
+  </div>
 
 </main>
 
@@ -488,19 +699,17 @@
 </div>
 
 <script>
-// ── State ──────────────────────────────────────────────────────────────────
-let staff   = JSON.parse(localStorage.getItem('punchcard_staff')   || '[]');
-let filter  = 'all';
-let editId  = null;   // for edit modal
-let deleteTarget = null;
-let dutyTarget   = null;
+// ═══════════════════════════════════════════════════════════════
+// PUNCH CARD
+// ═══════════════════════════════════════════════════════════════
 
-function save() {
-  localStorage.setItem('punchcard_staff', JSON.stringify(staff));
-}
+const DEFAULT_STAFF = [
+  { dept: 'Housekeeping', names: ['Sinazo','Nwabisa','Eliza','Nosipiwo 2','Zikhona','Nosi','Bellivia','Pumza','Deborah','Ester','Nolisindiso','Namhla','Nosiphiwo','Patricia'] },
+  { dept: 'Porters',      names: ['Owen','Andre','Moffat','David','Chris','Aphiwe','Danmore','Olwethu'] },
+];
 
 function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
 function nowTime() {
@@ -508,19 +717,40 @@ function nowTime() {
   return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
 }
 
-// ── Avatar colour palette ─────────────────────────────────────────────────
+// Load staff; seed defaults on first load
+let staff = JSON.parse(localStorage.getItem('punchcard_staff') || 'null');
+if (!staff) {
+  staff = [];
+  for (const group of DEFAULT_STAFF) {
+    for (const name of group.names) {
+      staff.push({ id: uid(), name, dept: group.dept, photo: '', onDuty: false, startTime: '', endTime: '' });
+    }
+  }
+  localStorage.setItem('punchcard_staff', JSON.stringify(staff));
+}
+
+let filter       = 'all';
+let editId       = null;
+let deleteTarget = null;
+let dutyTarget   = null;
+
+function saveStaffData() {
+  localStorage.setItem('punchcard_staff', JSON.stringify(staff));
+}
+
+// ── Avatar ────────────────────────────────────────────────────
 const COLOURS = ['#2563eb','#7c3aed','#db2777','#d97706','#16a34a','#0891b2','#9333ea','#ea580c'];
 function avatarColour(name) {
   let n = 0; for (const c of name) n += c.charCodeAt(0);
   return COLOURS[n % COLOURS.length];
 }
 function initials(name) {
-  return name.trim().split(/\s+/).map(w=>w[0]||'').join('').toUpperCase().slice(0,2) || '?';
+  return name.trim().split(/\s+/).map(w => w[0] || '').join('').toUpperCase().slice(0, 2) || '?';
 }
 
-// ── Render ────────────────────────────────────────────────────────────────
+// ── Render ────────────────────────────────────────────────────
 function render() {
-  const grid = document.getElementById('staffGrid');
+  const grid    = document.getElementById('staffGrid');
   const visible = filter === 'all' ? staff : staff.filter(s => s.dept === filter);
 
   if (visible.length === 0) {
@@ -532,19 +762,17 @@ function render() {
   } else {
     grid.innerHTML = visible.map(s => cardHTML(s)).join('');
   }
-
   updateSummary();
 }
 
 function cardHTML(s) {
-  const on = !!s.onDuty;
+  const on          = !!s.onDuty;
   const avatarInner = s.photo
     ? `<img src="${esc(s.photo)}" alt="${esc(s.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
     : '';
-  const fallback = `<span style="display:${s.photo?'none':'flex'};width:100%;height:100%;align-items:center;justify-content:center;">${esc(initials(s.name))}</span>`;
-
+  const fallback = `<span style="display:${s.photo ? 'none' : 'flex'};width:100%;height:100%;align-items:center;justify-content:center;">${esc(initials(s.name))}</span>`;
   return `
-  <div class="card ${on?'on-duty':''}" onclick="openDutyModal('${s.id}')">
+  <div class="card ${on ? 'on-duty' : ''}" onclick="openDutyModal('${s.id}')">
     <div class="card-actions" onclick="event.stopPropagation()">
       <div class="icon-btn edit" onclick="openEditModal('${s.id}')" title="Edit">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -563,8 +791,8 @@ function cardHTML(s) {
       <svg width="8" height="8" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="currentColor"/></svg>
       ${on ? 'On Duty' : 'Off Duty'}
     </div>
-    ${on && s.startTime ? `<div class="card-time">Since ${esc(s.startTime)}</div>` : ''}
-    ${!on && s.endTime  ? `<div class="card-time">Left at ${esc(s.endTime)}</div>` : ''}
+    ${on && s.startTime  ? `<div class="card-time">Since ${esc(s.startTime)}</div>` : ''}
+    ${!on && s.endTime   ? `<div class="card-time">Left at ${esc(s.endTime)}</div>` : ''}
   </div>`;
 }
 
@@ -572,11 +800,11 @@ function esc(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Summary ───────────────────────────────────────────────────────────────
-function groupByTime(arr, timeKey) {
+// ── Summary ───────────────────────────────────────────────────
+function groupByTime(arr, key) {
   const map = {};
   for (const s of arr) {
-    const t = s[timeKey] || 'unknown';
+    const t = s[key] || 'unknown';
     if (!map[t]) map[t] = [];
     map[t].push(s.name);
   }
@@ -613,10 +841,9 @@ function updateSummary() {
   }
 }
 
-// ── Copy ──────────────────────────────────────────────────────────────────
 function copyText(type) {
-  const el  = document.getElementById(type === 'on' ? 'onDutyText' : 'offDutyText');
-  const btn = document.getElementById(type === 'on' ? 'copyOnDuty' : 'copyOffDuty');
+  const el  = document.getElementById(type === 'on' ? 'onDutyText'  : 'offDutyText');
+  const btn = document.getElementById(type === 'on' ? 'copyOnDuty'  : 'copyOffDuty');
   if (el.classList.contains('empty')) return;
   navigator.clipboard.writeText(el.textContent).then(() => {
     btn.textContent = 'Copied!';
@@ -625,16 +852,14 @@ function copyText(type) {
   });
 }
 
-// ── Filter ────────────────────────────────────────────────────────────────
+// ── Filter ────────────────────────────────────────────────────
 function setFilter(f) {
   filter = f;
-  document.querySelectorAll('.filter-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.filter === f);
-  });
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
   render();
 }
 
-// ── Add / Edit Staff Modal ────────────────────────────────────────────────
+// ── Add / Edit Modal ──────────────────────────────────────────
 function openAddModal() {
   editId = null;
   document.getElementById('staffModalTitle').textContent = 'Add Staff Member';
@@ -671,13 +896,12 @@ function saveStaff() {
   } else {
     staff.push({ id: uid(), name, dept, photo, onDuty: false, startTime: '', endTime: '' });
   }
-
-  save();
+  saveStaffData();
   closeModal('staffModal');
   render();
 }
 
-// ── Delete Modal ──────────────────────────────────────────────────────────
+// ── Delete Modal ──────────────────────────────────────────────
 function openDeleteModal(id) {
   deleteTarget = id;
   const s = staff.find(x => x.id === id);
@@ -687,17 +911,16 @@ function openDeleteModal(id) {
 
 function confirmDelete() {
   staff = staff.filter(x => x.id !== deleteTarget);
-  save();
+  saveStaffData();
   closeModal('deleteModal');
   render();
 }
 
-// ── Duty Modal ────────────────────────────────────────────────────────────
+// ── Duty Modal ────────────────────────────────────────────────
 function openDutyModal(id) {
   const s = staff.find(x => x.id === id);
   if (!s) return;
   dutyTarget = id;
-
   document.getElementById('dutyName').textContent = s.name;
   document.getElementById('dutyDept').textContent = s.dept;
   document.getElementById('dutyTime').value = nowTime();
@@ -712,65 +935,239 @@ function openDutyModal(id) {
     badge.className   = 'duty-status-badge on';
     badge.innerHTML   = '<svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="currentColor"/></svg> Currently On Duty since ' + (s.startTime || '—');
     label.textContent = 'Off-Duty Time';
-    footer.innerHTML  = `
-      <button class="btn btn-secondary" onclick="closeModal('dutyModal')">Cancel</button>
-      <button class="btn btn-danger"    onclick="setOffDuty()">Set Off Duty</button>`;
+    footer.innerHTML  = `<button class="btn btn-secondary" onclick="closeModal('dutyModal')">Cancel</button>
+                         <button class="btn btn-danger" onclick="setOffDuty()">Set Off Duty</button>`;
   } else {
     title.textContent = 'Set On Duty';
     badge.className   = 'duty-status-badge off';
     badge.innerHTML   = '<svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="currentColor"/></svg> Currently Off Duty';
     label.textContent = 'Start Time';
-    footer.innerHTML  = `
-      <button class="btn btn-secondary" onclick="closeModal('dutyModal')">Cancel</button>
-      <button class="btn btn-primary"   onclick="setOnDuty()">Set On Duty</button>`;
+    footer.innerHTML  = `<button class="btn btn-secondary" onclick="closeModal('dutyModal')">Cancel</button>
+                         <button class="btn btn-primary" onclick="setOnDuty()">Set On Duty</button>`;
   }
-
   openModal('dutyModal');
 }
 
 function setOnDuty() {
   const s = staff.find(x => x.id === dutyTarget);
   if (!s) return;
-  s.onDuty    = true;
-  s.startTime = document.getElementById('dutyTime').value;
-  s.endTime   = '';
-  save();
-  closeModal('dutyModal');
-  render();
+  s.onDuty = true; s.startTime = document.getElementById('dutyTime').value; s.endTime = '';
+  saveStaffData(); closeModal('dutyModal'); render();
 }
 
 function setOffDuty() {
   const s = staff.find(x => x.id === dutyTarget);
   if (!s) return;
-  s.onDuty  = false;
-  s.endTime = document.getElementById('dutyTime').value;
-  save();
-  closeModal('dutyModal');
-  render();
+  s.onDuty = false; s.endTime = document.getElementById('dutyTime').value;
+  saveStaffData(); closeModal('dutyModal'); render();
 }
 
-// ── Modal helpers ─────────────────────────────────────────────────────────
-function openModal(id) {
-  document.getElementById(id).classList.add('open');
-}
-function closeModal(id) {
-  document.getElementById(id).classList.remove('open');
+// ── Modal helpers ─────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+});
+document.getElementById('staffName').addEventListener('keydown', e => { if (e.key === 'Enter') saveStaff(); });
+
+
+// ═══════════════════════════════════════════════════════════════
+// HOURS TRACKER
+// ═══════════════════════════════════════════════════════════════
+
+// hoursData: { "YYYY-MM": { "YYYY-MM-DD": { on: "HH:MM", off: "HH:MM" } } }
+let hoursData = JSON.parse(localStorage.getItem('punchcard_hours') || '{}');
+
+function saveHours() {
+  localStorage.setItem('punchcard_hours', JSON.stringify(hoursData));
 }
 
-// Close on overlay click
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay) overlay.classList.remove('open');
+// Build a list of cycle keys "YYYY-MM" representing the cycle that
+// starts on the 26th of that month. We show ±12 months around today.
+function buildCycleOptions() {
+  const sel    = document.getElementById('cycleSelect');
+  const today  = new Date();
+  const options = [];
+  for (let delta = -12; delta <= 12; delta++) {
+    const d = new Date(today.getFullYear(), today.getMonth() + delta, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`;
+    options.push(key);
+  }
+  sel.innerHTML = options.map(k => `<option value="${k}">${cycleLabel(k)}</option>`).join('');
+  // Default to current cycle
+  sel.value = currentCycleKey();
+}
+
+function currentCycleKey() {
+  const today = new Date();
+  const d     = today.getDate();
+  // If today >= 26, cycle started this month; otherwise it started last month
+  if (d >= 26) {
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2,'0')}`;
+  } else {
+    const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2,'0')}`;
+  }
+}
+
+function cycleLabel(key) {
+  const [y, m]  = key.split('-').map(Number);
+  const start   = new Date(y, m - 1, 26);
+  const end     = new Date(y, m, 25);        // 25th of next month
+  const months  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `26 ${months[start.getMonth()]} – 25 ${months[end.getMonth()]} ${end.getFullYear()}`;
+}
+
+// Returns array of Date objects from 26th of cycleKey month to 25th of next
+function cycleDays(key) {
+  const [y, m] = key.split('-').map(Number);
+  const days   = [];
+  // 26th of month m (1-based)
+  const start  = new Date(y, m - 1, 26);
+  // 25th of next month
+  const end    = new Date(y, m, 25);
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    days.push(new Date(d));
+  }
+  return days;
+}
+
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+
+const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function formatDate(date) {
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
+}
+
+// Round minutes to nearest 30-minute boundary, return decimal hours
+function roundHalf(minutes) {
+  return Math.round(minutes / 30) * 0.5;
+}
+
+function calcHours(onVal, offVal) {
+  if (!onVal || !offVal) return null;
+  const [oh, om] = onVal.split(':').map(Number);
+  const [fh, fm] = offVal.split(':').map(Number);
+  let totalMin   = (fh * 60 + fm) - (oh * 60 + om);
+  if (totalMin <= 0) totalMin += 24 * 60; // crosses midnight
+  return roundHalf(totalMin);
+}
+
+function formatHours(h) {
+  if (h === null) return '—';
+  if (h === 0)    return '0';
+  return h % 1 === 0 ? `${h}` : `${h}`;
+}
+
+let currentCycle = currentCycleKey();
+
+function renderTracker() {
+  const days   = cycleDays(currentCycle);
+  const today  = dateKey(new Date());
+  const cycData = hoursData[currentCycle] || {};
+  const tbody  = document.getElementById('trackerBody');
+  let totalHrs = 0;
+
+  tbody.innerHTML = days.map(date => {
+    const dk   = dateKey(date);
+    const row  = cycData[dk] || { on: '', off: '' };
+    const hrs  = calcHours(row.on, row.off);
+    if (hrs !== null) totalHrs += hrs;
+    const isToday = dk === today;
+
+    return `<tr class="${isToday ? 'today' : ''}">
+      <td class="date-cell">
+        <div class="date-day">${formatDate(date)}</div>
+        <div class="date-weekday">${WEEKDAYS[date.getDay()]}</div>
+      </td>
+      <td>
+        <input class="time-input" type="time" value="${esc(row.on)}"
+          onchange="saveTimeEntry('${currentCycle}','${dk}','on',this.value)"
+          placeholder="--:--" />
+      </td>
+      <td>
+        <input class="time-input" type="time" value="${esc(row.off)}"
+          onchange="saveTimeEntry('${currentCycle}','${dk}','off',this.value)"
+          placeholder="--:--" />
+      </td>
+      <td class="hours-cell ${hrs !== null ? 'has-hours' : 'empty-hours'}">
+        ${formatHours(hrs)}${hrs !== null ? '<small style="font-size:.7rem;font-weight:400;color:var(--text-muted)"> h</small>' : ''}
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Total
+  const t = document.getElementById('trackerTotal');
+  t.innerHTML = `${totalHrs % 1 === 0 ? totalHrs : totalHrs}<span>hrs</span>`;
+
+  // Header label
+  document.getElementById('cycleLabel').textContent = cycleLabel(currentCycle);
+}
+
+function saveTimeEntry(cycle, dk, field, value) {
+  if (!hoursData[cycle]) hoursData[cycle] = {};
+  if (!hoursData[cycle][dk]) hoursData[cycle][dk] = { on: '', off: '' };
+  hoursData[cycle][dk][field] = value;
+  saveHours();
+  // Re-render just the totals row without losing focus
+  updateTrackerTotals(cycle);
+}
+
+function updateTrackerTotals(cycle) {
+  const days    = cycleDays(cycle);
+  const cycData = hoursData[cycle] || {};
+  let total     = 0;
+  days.forEach(date => {
+    const dk  = dateKey(date);
+    const row = cycData[dk] || {};
+    const h   = calcHours(row.on, row.off);
+    if (h !== null) total += h;
+    // Update the hours cell for this row without re-rendering the whole table
+    const tds = document.querySelectorAll(`#trackerBody tr`);
+    // find by date
+    tds.forEach(tr => {
+      const dayDiv = tr.querySelector('.date-day');
+      if (!dayDiv) return;
+      if (dayDiv.textContent.trim() === formatDate(date)) {
+        const hCell = tr.querySelector('.hours-cell');
+        if (hCell) {
+          hCell.className = `hours-cell ${h !== null ? 'has-hours' : 'empty-hours'}`;
+          hCell.innerHTML = h !== null
+            ? `${formatHours(h)}<small style="font-size:.7rem;font-weight:400;color:var(--text-muted)"> h</small>`
+            : '—';
+        }
+      }
+    });
   });
-});
+  const t = document.getElementById('trackerTotal');
+  t.innerHTML = `${total}<span>hrs</span>`;
+}
 
-// Enter key to submit staff form
-document.getElementById('staffName').addEventListener('keydown', e => {
-  if (e.key === 'Enter') saveStaff();
-});
+function onCycleChange() {
+  currentCycle = document.getElementById('cycleSelect').value;
+  renderTracker();
+}
 
-// ── Init ──────────────────────────────────────────────────────────────────
+function shiftCycle(delta) {
+  const sel  = document.getElementById('cycleSelect');
+  const opts = Array.from(sel.options).map(o => o.value);
+  const idx  = opts.indexOf(currentCycle);
+  const next = idx + delta;
+  if (next < 0 || next >= opts.length) return;
+  currentCycle  = opts[next];
+  sel.value     = currentCycle;
+  renderTracker();
+}
+
+// ── Init ──────────────────────────────────────────────────────
 render();
+buildCycleOptions();
+renderTracker();
 </script>
 </body>
 </html>
