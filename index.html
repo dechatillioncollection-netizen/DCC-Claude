@@ -553,10 +553,133 @@
       color: var(--text-muted);
     }
 
+    /* ── Week row separators ── */
+    .tracker-table tr.week-start td {
+      border-top: 2px solid #c7d2fe;
+    }
+    .tracker-table tr.week-subtotal td {
+      background: #eef2ff;
+      font-weight: 700;
+      font-size: .8rem;
+      color: #3730a3;
+      border-bottom: 2px solid #c7d2fe;
+    }
+    .tracker-table tr.week-subtotal td.paid-col {
+      color: var(--green);
+    }
+
+    /* ── Weekly summary grid ── */
+    .week-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+      padding: 16px;
+    }
+    .week-summary-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .week-summary-label {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .week-summary-dates {
+      font-size: .7rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .week-summary-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 3px;
+    }
+    .week-summary-row-label {
+      font-size: .72rem;
+      color: var(--text-muted);
+    }
+    .week-summary-val {
+      font-size: .92rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .week-summary-val.paid { color: var(--green); }
+    .week-summary-val.zero { color: var(--border); font-weight: 400; }
+
+    /* ── Paid hours table extras ── */
+    .deduction-cell {
+      font-size: .8rem;
+      color: var(--red);
+      text-align: right;
+      white-space: nowrap;
+    }
+    .paid-cell {
+      font-weight: 700;
+      color: var(--green);
+      text-align: right;
+      white-space: nowrap;
+    }
+    .paid-cell.zero { color: var(--text-muted); font-weight: 400; }
+    .paid-cell.empty { color: var(--border); font-weight: 400; }
+
+    .tracker-footer-multi {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 14px 18px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      text-align: center;
+    }
+    .footer-stat-label {
+      font-size: .65rem;
+      opacity: .7;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 4px;
+    }
+    .footer-stat-val {
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+    .footer-stat-val span {
+      font-size: .7rem;
+      font-weight: 500;
+      opacity: .7;
+      margin-left: 2px;
+    }
+    .footer-stat-val.green { color: #6ee7b7; }
+    .footer-stat-val.red   { color: #fca5a5; }
+
+    .sub-section-header {
+      background: #f1f5f9;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 9px 16px;
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #475569;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sub-section-header svg { opacity: .6; }
+
     @media (max-width: 400px) {
       .staff-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
       .time-input { width: 76px; font-size: .78rem; }
       .tracker-table th, .tracker-table td { padding: 6px 8px; }
+      .tracker-footer-multi { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
@@ -606,7 +729,8 @@
   <!-- ── Hours Tracker ── -->
   <div class="section-title">Monthly Hours Tracker</div>
 
-  <div class="tracker-card">
+  <!-- Cycle selector shared across all tracker sections -->
+  <div class="tracker-card" style="margin-bottom:14px">
     <div class="tracker-header">
       <div class="tracker-header-left">
         <h2>Work Hours</h2>
@@ -618,6 +742,12 @@
         <button class="cycle-nav-btn" onclick="shiftCycle(1)"  title="Next cycle">&#8250;</button>
       </div>
     </div>
+
+    <!-- Daily gross hours table -->
+    <div class="sub-section-header">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Daily Hours
+    </div>
     <div class="tracker-table-wrap">
       <table class="tracker-table">
         <thead>
@@ -625,15 +755,59 @@
             <th>Date</th>
             <th>On Duty</th>
             <th>Off Duty</th>
-            <th style="text-align:right">Hours</th>
+            <th style="text-align:right">Gross Hrs</th>
           </tr>
         </thead>
         <tbody id="trackerBody"></tbody>
       </table>
     </div>
     <div class="tracker-footer">
-      <div class="tracker-footer-label">Total Hours</div>
+      <div class="tracker-footer-label">Total Gross Hours</div>
       <div class="tracker-total" id="trackerTotal">0<span>hrs</span></div>
+    </div>
+  </div>
+
+  <!-- Weekly summary -->
+  <div class="tracker-card" style="margin-bottom:14px">
+    <div class="sub-section-header" style="border-top:none">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 3h18v18H3z"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+      Weekly Summary
+    </div>
+    <div class="week-summary-grid" id="weeklySummary"></div>
+  </div>
+
+  <!-- Paid hours -->
+  <div class="tracker-card">
+    <div class="sub-section-header" style="border-top:none">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      Paid Hours  <span style="font-weight:400;font-size:.72rem;color:var(--text-muted);text-transform:none;letter-spacing:0">(gross − 0.5 h lunch per worked day)</span>
+    </div>
+    <div class="tracker-table-wrap">
+      <table class="tracker-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th style="text-align:right">Gross</th>
+            <th style="text-align:right">Lunch</th>
+            <th style="text-align:right">Paid</th>
+          </tr>
+        </thead>
+        <tbody id="paidBody"></tbody>
+      </table>
+    </div>
+    <div class="tracker-footer-multi" id="paidFooter">
+      <div>
+        <div class="footer-stat-label">Total Gross</div>
+        <div class="footer-stat-val" id="paidTotalGross">0<span>hrs</span></div>
+      </div>
+      <div>
+        <div class="footer-stat-label">Lunch Deducted</div>
+        <div class="footer-stat-val red" id="paidTotalLunch">0<span>hrs</span></div>
+      </div>
+      <div>
+        <div class="footer-stat-label">Total Paid</div>
+        <div class="footer-stat-val green" id="paidTotalPaid">0<span>hrs</span></div>
+      </div>
     </div>
   </div>
 
@@ -983,50 +1157,40 @@ function saveHours() {
   localStorage.setItem('punchcard_hours', JSON.stringify(hoursData));
 }
 
-// Build a list of cycle keys "YYYY-MM" representing the cycle that
-// starts on the 26th of that month. We show ±12 months around today.
 function buildCycleOptions() {
-  const sel    = document.getElementById('cycleSelect');
-  const today  = new Date();
-  const options = [];
+  const sel   = document.getElementById('cycleSelect');
+  const today = new Date();
+  const opts  = [];
   for (let delta = -12; delta <= 12; delta++) {
-    const d = new Date(today.getFullYear(), today.getMonth() + delta, 1);
+    const d   = new Date(today.getFullYear(), today.getMonth() + delta, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`;
-    options.push(key);
+    opts.push(key);
   }
-  sel.innerHTML = options.map(k => `<option value="${k}">${cycleLabel(k)}</option>`).join('');
-  // Default to current cycle
+  sel.innerHTML = opts.map(k => `<option value="${k}">${cycleLabel(k)}</option>`).join('');
   sel.value = currentCycleKey();
 }
 
 function currentCycleKey() {
   const today = new Date();
-  const d     = today.getDate();
-  // If today >= 26, cycle started this month; otherwise it started last month
-  if (d >= 26) {
+  if (today.getDate() >= 26) {
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2,'0')}`;
-  } else {
-    const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2,'0')}`;
   }
+  const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2,'0')}`;
 }
 
 function cycleLabel(key) {
-  const [y, m]  = key.split('-').map(Number);
-  const start   = new Date(y, m - 1, 26);
-  const end     = new Date(y, m, 25);        // 25th of next month
-  const months  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `26 ${months[start.getMonth()]} – 25 ${months[end.getMonth()]} ${end.getFullYear()}`;
+  const [y, m] = key.split('-').map(Number);
+  const start  = new Date(y, m - 1, 26);
+  const end    = new Date(y, m, 25);
+  return `26 ${MONTHS[start.getMonth()]} – 25 ${MONTHS[end.getMonth()]} ${end.getFullYear()}`;
 }
 
-// Returns array of Date objects from 26th of cycleKey month to 25th of next
 function cycleDays(key) {
   const [y, m] = key.split('-').map(Number);
-  const days   = [];
-  // 26th of month m (1-based)
   const start  = new Date(y, m - 1, 26);
-  // 25th of next month
   const end    = new Date(y, m, 25);
+  const days   = [];
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     days.push(new Date(d));
   }
@@ -1040,112 +1204,169 @@ function dateKey(date) {
 const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function formatDate(date) {
-  return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
-}
+function formatDate(date) { return `${date.getDate()} ${MONTHS[date.getMonth()]}`; }
 
-// Round minutes to nearest 30-minute boundary, return decimal hours
-function roundHalf(minutes) {
-  return Math.round(minutes / 30) * 0.5;
-}
+function roundHalf(minutes) { return Math.round(minutes / 30) * 0.5; }
 
 function calcHours(onVal, offVal) {
   if (!onVal || !offVal) return null;
   const [oh, om] = onVal.split(':').map(Number);
   const [fh, fm] = offVal.split(':').map(Number);
   let totalMin   = (fh * 60 + fm) - (oh * 60 + om);
-  if (totalMin <= 0) totalMin += 24 * 60; // crosses midnight
+  if (totalMin <= 0) totalMin += 24 * 60;
   return roundHalf(totalMin);
 }
 
-function formatHours(h) {
-  if (h === null) return '—';
-  if (h === 0)    return '0';
-  return h % 1 === 0 ? `${h}` : `${h}`;
+// Paid = gross minus 0.5 h lunch, floored at 0. Null if no shift.
+function calcPaid(gross) {
+  if (gross === null) return null;
+  return Math.max(0, gross - 0.5);
+}
+
+function hCell(h) {
+  if (h === null) return '<span style="color:var(--border)">—</span>';
+  return `${h}<small style="font-size:.7rem;font-weight:400;color:var(--text-muted)"> h</small>`;
+}
+
+// Split flat days array into week chunks of 7
+function splitWeeks(days) {
+  const weeks = [];
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
+  return weeks;
 }
 
 let currentCycle = currentCycleKey();
 
+// Single render function — onchange fires after blur so full re-render is safe
 function renderTracker() {
-  const days   = cycleDays(currentCycle);
-  const today  = dateKey(new Date());
+  const days    = cycleDays(currentCycle);
+  const weeks   = splitWeeks(days);
+  const today   = dateKey(new Date());
   const cycData = hoursData[currentCycle] || {};
-  const tbody  = document.getElementById('trackerBody');
-  let totalHrs = 0;
 
-  tbody.innerHTML = days.map(date => {
-    const dk   = dateKey(date);
-    const row  = cycData[dk] || { on: '', off: '' };
-    const hrs  = calcHours(row.on, row.off);
-    if (hrs !== null) totalHrs += hrs;
-    const isToday = dk === today;
+  document.getElementById('cycleLabel').textContent = cycleLabel(currentCycle);
 
-    return `<tr class="${isToday ? 'today' : ''}">
-      <td class="date-cell">
-        <div class="date-day">${formatDate(date)}</div>
-        <div class="date-weekday">${WEEKDAYS[date.getDay()]}</div>
-      </td>
-      <td>
-        <input class="time-input" type="time" value="${esc(row.on)}"
-          onchange="saveTimeEntry('${currentCycle}','${dk}','on',this.value)"
-          placeholder="--:--" />
-      </td>
-      <td>
-        <input class="time-input" type="time" value="${esc(row.off)}"
-          onchange="saveTimeEntry('${currentCycle}','${dk}','off',this.value)"
-          placeholder="--:--" />
-      </td>
-      <td class="hours-cell ${hrs !== null ? 'has-hours' : 'empty-hours'}">
-        ${formatHours(hrs)}${hrs !== null ? '<small style="font-size:.7rem;font-weight:400;color:var(--text-muted)"> h</small>' : ''}
-      </td>
-    </tr>`;
+  // ── 1. Daily gross table ──────────────────────────────────
+  let cycleGross = 0;
+  const dailyRows = [];
+
+  weeks.forEach((week, wi) => {
+    let weekGross = 0;
+    week.forEach((date, di) => {
+      const dk    = dateKey(date);
+      const row   = cycData[dk] || { on: '', off: '' };
+      const gross = calcHours(row.on, row.off);
+      if (gross !== null) { weekGross += gross; cycleGross += gross; }
+      const isFirst = wi > 0 && di === 0;
+      dailyRows.push(`
+        <tr class="${dk === today ? 'today' : ''}${isFirst ? ' week-start' : ''}">
+          <td class="date-cell">
+            <div class="date-day">${formatDate(date)}</div>
+            <div class="date-weekday">${WEEKDAYS[date.getDay()]}</div>
+          </td>
+          <td><input class="time-input" type="time" value="${esc(row.on)}"
+                onchange="saveTimeEntry('${currentCycle}','${dk}','on',this.value)"></td>
+          <td><input class="time-input" type="time" value="${esc(row.off)}"
+                onchange="saveTimeEntry('${currentCycle}','${dk}','off',this.value)"></td>
+          <td class="hours-cell ${gross !== null ? 'has-hours' : 'empty-hours'}">${hCell(gross)}</td>
+        </tr>`);
+    });
+    dailyRows.push(`
+      <tr class="week-subtotal">
+        <td colspan="3" style="text-align:right;padding-right:14px">Week ${wi + 1} total</td>
+        <td class="hours-cell" style="color:#3730a3">
+          ${weekGross > 0 ? `${weekGross}<small style="font-size:.7rem;font-weight:400;opacity:.7"> h</small>` : '<span style="color:var(--border)">—</span>'}
+        </td>
+      </tr>`);
+  });
+
+  document.getElementById('trackerBody').innerHTML = dailyRows.join('');
+  document.getElementById('trackerTotal').innerHTML = `${cycleGross}<span>hrs</span>`;
+
+  // ── 2. Weekly summary cards ───────────────────────────────
+  document.getElementById('weeklySummary').innerHTML = weeks.map((week, wi) => {
+    let wGross = 0, wPaid = 0;
+    week.forEach(date => {
+      const row   = cycData[dateKey(date)] || {};
+      const gross = calcHours(row.on, row.off);
+      if (gross !== null) { wGross += gross; wPaid += calcPaid(gross); }
+    });
+    const startLbl = formatDate(week[0]);
+    const endLbl   = formatDate(week[week.length - 1]);
+    return `
+      <div class="week-summary-item">
+        <div class="week-summary-label">Week ${wi + 1}</div>
+        <div class="week-summary-dates">${startLbl} – ${endLbl}</div>
+        <div class="week-summary-row">
+          <span class="week-summary-row-label">Gross</span>
+          <span class="week-summary-val ${wGross === 0 ? 'zero' : ''}">${wGross}<small style="font-size:.7rem;font-weight:400"> h</small></span>
+        </div>
+        <div class="week-summary-row">
+          <span class="week-summary-row-label">Paid</span>
+          <span class="week-summary-val paid ${wPaid === 0 ? 'zero' : ''}">${wPaid}<small style="font-size:.7rem;font-weight:400"> h</small></span>
+        </div>
+      </div>`;
   }).join('');
 
-  // Total
-  const t = document.getElementById('trackerTotal');
-  t.innerHTML = `${totalHrs % 1 === 0 ? totalHrs : totalHrs}<span>hrs</span>`;
+  // ── 3. Paid hours table ───────────────────────────────────
+  let totalGross = 0, totalLunch = 0, totalPaid = 0;
+  const paidRows = [];
 
-  // Header label
-  document.getElementById('cycleLabel').textContent = cycleLabel(currentCycle);
+  weeks.forEach((week, wi) => {
+    let wGross = 0, wLunch = 0, wPaid = 0;
+    week.forEach((date, di) => {
+      const dk    = dateKey(date);
+      const row   = cycData[dk] || { on: '', off: '' };
+      const gross = calcHours(row.on, row.off);
+      const worked = gross !== null;
+      const lunch  = worked ? 0.5 : 0;
+      const paid   = worked ? calcPaid(gross) : null;
+      if (worked) {
+        wGross += gross; wLunch += lunch; wPaid += paid;
+        totalGross += gross; totalLunch += lunch; totalPaid += paid;
+      }
+      const isFirst = wi > 0 && di === 0;
+      paidRows.push(`
+        <tr class="${dk === today ? 'today' : ''}${isFirst ? ' week-start' : ''}">
+          <td class="date-cell">
+            <div class="date-day">${formatDate(date)}</div>
+            <div class="date-weekday">${WEEKDAYS[date.getDay()]}</div>
+          </td>
+          <td class="hours-cell ${gross !== null ? 'has-hours' : 'empty-hours'}">${hCell(gross)}</td>
+          <td class="deduction-cell">
+            ${worked ? `−0.5<small style="font-size:.7rem;font-weight:400"> h</small>` : '<span style="color:var(--border)">—</span>'}
+          </td>
+          <td class="paid-cell ${paid === null ? 'empty' : paid === 0 ? 'zero' : ''}">
+            ${paid === null
+              ? '<span style="color:var(--border)">—</span>'
+              : `${paid}<small style="font-size:.7rem;font-weight:400;color:inherit"> h</small>`}
+          </td>
+        </tr>`);
+    });
+    paidRows.push(`
+      <tr class="week-subtotal">
+        <td colspan="2" style="text-align:right;padding-right:14px">Week ${wi + 1} total</td>
+        <td class="deduction-cell" style="color:#9f1239">
+          ${wLunch > 0 ? `−${wLunch}<small style="font-size:.7rem;font-weight:400"> h</small>` : '<span style="color:var(--border)">—</span>'}
+        </td>
+        <td class="paid-col" style="text-align:right;font-weight:700;color:var(--green)">
+          ${wPaid > 0 ? `${wPaid}<small style="font-size:.7rem;font-weight:400;opacity:.7"> h</small>` : '<span style="color:var(--border)">—</span>'}
+        </td>
+      </tr>`);
+  });
+
+  document.getElementById('paidBody').innerHTML = paidRows.join('');
+  document.getElementById('paidTotalGross').innerHTML = `${totalGross}<span>hrs</span>`;
+  document.getElementById('paidTotalLunch').innerHTML = `−${totalLunch}<span>hrs</span>`;
+  document.getElementById('paidTotalPaid').innerHTML  = `${totalPaid}<span>hrs</span>`;
 }
 
 function saveTimeEntry(cycle, dk, field, value) {
-  if (!hoursData[cycle]) hoursData[cycle] = {};
+  if (!hoursData[cycle])     hoursData[cycle]     = {};
   if (!hoursData[cycle][dk]) hoursData[cycle][dk] = { on: '', off: '' };
   hoursData[cycle][dk][field] = value;
   saveHours();
-  // Re-render just the totals row without losing focus
-  updateTrackerTotals(cycle);
-}
-
-function updateTrackerTotals(cycle) {
-  const days    = cycleDays(cycle);
-  const cycData = hoursData[cycle] || {};
-  let total     = 0;
-  days.forEach(date => {
-    const dk  = dateKey(date);
-    const row = cycData[dk] || {};
-    const h   = calcHours(row.on, row.off);
-    if (h !== null) total += h;
-    // Update the hours cell for this row without re-rendering the whole table
-    const tds = document.querySelectorAll(`#trackerBody tr`);
-    // find by date
-    tds.forEach(tr => {
-      const dayDiv = tr.querySelector('.date-day');
-      if (!dayDiv) return;
-      if (dayDiv.textContent.trim() === formatDate(date)) {
-        const hCell = tr.querySelector('.hours-cell');
-        if (hCell) {
-          hCell.className = `hours-cell ${h !== null ? 'has-hours' : 'empty-hours'}`;
-          hCell.innerHTML = h !== null
-            ? `${formatHours(h)}<small style="font-size:.7rem;font-weight:400;color:var(--text-muted)"> h</small>`
-            : '—';
-        }
-      }
-    });
-  });
-  const t = document.getElementById('trackerTotal');
-  t.innerHTML = `${total}<span>hrs</span>`;
+  renderTracker();
 }
 
 function onCycleChange() {
@@ -1159,8 +1380,8 @@ function shiftCycle(delta) {
   const idx  = opts.indexOf(currentCycle);
   const next = idx + delta;
   if (next < 0 || next >= opts.length) return;
-  currentCycle  = opts[next];
-  sel.value     = currentCycle;
+  currentCycle = opts[next];
+  sel.value    = currentCycle;
   renderTracker();
 }
 
