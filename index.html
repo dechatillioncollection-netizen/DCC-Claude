@@ -186,18 +186,32 @@
       background: var(--surface);
       border: 2px solid var(--border);
       border-radius: var(--radius);
-      padding: 16px 12px 12px;
+      padding: 14px 12px 12px;
       text-align: center;
-      cursor: pointer;
-      transition: transform .15s, box-shadow .15s, border-color .15s;
+      transition: transform .15s, box-shadow .15s, border-color .15s, background .15s;
       position: relative;
       box-shadow: var(--shadow);
       user-select: none;
     }
-    .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    /* not-working: muted, no pointer on main body */
+    .card.not-working { opacity: .72; }
+    /* working-today (not yet on duty) */
+    .card.working-today {
+      border-color: #93c5fd;
+      background: linear-gradient(160deg, #eff6ff, #fff);
+    }
+    /* on-duty */
     .card.on-duty {
       border-color: var(--green-border);
       background: linear-gradient(160deg, #f0fdf4, #fff);
+    }
+    /* off-duty-done (clocked out) */
+    .card.off-duty-done {
+      border-color: #d1d5db;
+      background: linear-gradient(160deg, #f9fafb, #fff);
+    }
+    .card.on-duty:hover, .card.working-today:hover, .card.off-duty-done:hover {
+      transform: translateY(-2px); box-shadow: var(--shadow-md);
     }
 
     .card-actions {
@@ -256,7 +270,33 @@
       border: 2px solid var(--surface);
       background: #d1d5db;
     }
-    .on-duty .status-dot { background: var(--green); }
+    .on-duty .status-dot      { background: var(--green); }
+    .working-today .status-dot { background: #3b82f6; }
+    .off-duty-done .status-dot { background: #9ca3af; }
+
+    /* Working-today toggle strip at bottom of card */
+    .card-working-toggle {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .working-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: .72rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--surface2);
+      color: var(--text-muted);
+      transition: all .15s;
+    }
+    .working-toggle-btn:hover { border-color: #93c5fd; color: #2563eb; background: #eff6ff; }
+    .working-toggle-btn.active { border-color: #93c5fd; color: #1d4ed8; background: #dbeafe; }
 
     .card-name {
       font-size: .9rem;
@@ -286,6 +326,14 @@
     .on-duty .card-status {
       background: var(--green-light);
       color: var(--green);
+    }
+    .working-today .card-status {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+    .off-duty-done .card-status {
+      background: #f3f4f6;
+      color: #6b7280;
     }
     .card-time {
       font-size: .72rem;
@@ -394,8 +442,10 @@
       font-weight: 600;
       margin-bottom: 18px;
     }
-    .duty-status-badge.off { background: #f3f4f6; color: var(--text-muted); }
-    .duty-status-badge.on  { background: var(--green-light); color: var(--green); }
+    .duty-status-badge.not-working { background: #f3f4f6; color: var(--text-muted); }
+    .duty-status-badge.working     { background: #dbeafe; color: #1d4ed8; }
+    .duty-status-badge.on          { background: var(--green-light); color: var(--green); }
+    .duty-status-badge.off         { background: #f3f4f6; color: #6b7280; }
 
     /* ── Hours Tracker ── */
     .tracker-card {
@@ -721,6 +771,10 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Add Staff
     </button>
+    <button class="add-btn" style="background:#0f172a;" onclick="confirmNewDay()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      New Day
+    </button>
   </div>
 
   <!-- Grid -->
@@ -872,6 +926,21 @@
   </div>
 </div>
 
+<!-- ── New Day Confirm Modal ── -->
+<div class="modal-overlay" id="newDayModal">
+  <div class="modal">
+    <div class="modal-header" style="background:#0f172a;">Start New Day</div>
+    <div class="modal-body">
+      <p style="font-size:.9rem;line-height:1.6;">This will reset <strong>all staff</strong> back to <em>Not working today</em> and clear the On Duty and Off Duty lists.</p>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-top:10px;">This cannot be undone.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('newDayModal')">Cancel</button>
+      <button class="btn btn-primary" style="background:#0f172a;" onclick="doNewDay()">Start New Day</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════════════════
 // PUNCH CARD
@@ -882,25 +951,37 @@ const DEFAULT_STAFF = [
   { dept: 'Porters',      names: ['Owen','Andre','Moffat','David','Chris','Aphiwe','Danmore','Olwethu'] },
 ];
 
+// status values: 'not-working' | 'working' | 'on-duty' | 'off-duty'
+// 'off-duty' only applies to staff who were previously 'on-duty' that day.
+
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
-
 function nowTime() {
   const d = new Date();
   return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
 }
 
-// Load staff; seed defaults on first load
 let staff = JSON.parse(localStorage.getItem('punchcard_staff') || 'null');
 if (!staff) {
   staff = [];
   for (const group of DEFAULT_STAFF) {
     for (const name of group.names) {
-      staff.push({ id: uid(), name, dept: group.dept, photo: '', onDuty: false, startTime: '', endTime: '' });
+      staff.push({ id: uid(), name, dept: group.dept, photo: '',
+                   status: 'not-working', startTime: '', endTime: '' });
     }
   }
   localStorage.setItem('punchcard_staff', JSON.stringify(staff));
+} else {
+  // Migrate old records that used onDuty boolean
+  staff.forEach(s => {
+    if (s.status === undefined) {
+      if (s.onDuty)        s.status = 'on-duty';
+      else if (s.endTime)  s.status = 'off-duty';
+      else                 s.status = 'not-working';
+      delete s.onDuty;
+    }
+  });
 }
 
 let filter       = 'all';
@@ -939,14 +1020,35 @@ function render() {
   updateSummary();
 }
 
+function cardClass(s) {
+  if (s.status === 'on-duty')    return 'on-duty';
+  if (s.status === 'off-duty')   return 'off-duty-done';
+  if (s.status === 'working')    return 'working-today';
+  return 'not-working';
+}
+
+function statusLabel(s) {
+  if (s.status === 'on-duty')   return 'On Duty';
+  if (s.status === 'off-duty')  return 'Off Duty';
+  if (s.status === 'working')   return 'Working Today';
+  return 'Not Working';
+}
+
 function cardHTML(s) {
-  const on          = !!s.onDuty;
+  const cls         = cardClass(s);
+  const isWorking   = s.status === 'working';
+  const isOnDuty    = s.status === 'on-duty';
+  const isOffDuty   = s.status === 'off-duty';
+  const notWorking  = s.status === 'not-working';
+  const canSetDuty  = isWorking || isOnDuty || isOffDuty;
+
   const avatarInner = s.photo
     ? `<img src="${esc(s.photo)}" alt="${esc(s.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
     : '';
   const fallback = `<span style="display:${s.photo ? 'none' : 'flex'};width:100%;height:100%;align-items:center;justify-content:center;">${esc(initials(s.name))}</span>`;
+
   return `
-  <div class="card ${on ? 'on-duty' : ''}" onclick="openDutyModal('${s.id}')">
+  <div class="card ${cls}" onclick="${canSetDuty ? `openDutyModal('${s.id}')` : ''}">
     <div class="card-actions" onclick="event.stopPropagation()">
       <div class="icon-btn edit" onclick="openEditModal('${s.id}')" title="Edit">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -963,10 +1065,17 @@ function cardHTML(s) {
     <div class="card-dept">${esc(s.dept)}</div>
     <div class="card-status">
       <svg width="8" height="8" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="currentColor"/></svg>
-      ${on ? 'On Duty' : 'Off Duty'}
+      ${statusLabel(s)}
     </div>
-    ${on && s.startTime  ? `<div class="card-time">Since ${esc(s.startTime)}</div>` : ''}
-    ${!on && s.endTime   ? `<div class="card-time">Left at ${esc(s.endTime)}</div>` : ''}
+    ${isOnDuty  && s.startTime ? `<div class="card-time">Since ${esc(s.startTime)}</div>` : ''}
+    ${isOffDuty && s.endTime   ? `<div class="card-time">Left at ${esc(s.endTime)}</div>` : ''}
+    <div class="card-working-toggle" onclick="event.stopPropagation()">
+      <button class="working-toggle-btn ${notWorking ? '' : 'active'}"
+              onclick="toggleWorking('${s.id}')">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        ${notWorking ? 'Working today?' : 'Working today'}
+      </button>
+    </div>
   </div>`;
 }
 
@@ -986,8 +1095,10 @@ function groupByTime(arr, key) {
 }
 
 function updateSummary() {
-  const onStaff  = staff.filter(s => s.onDuty);
-  const offStaff = staff.filter(s => !s.onDuty && s.endTime);
+  // On duty: status === 'on-duty'
+  const onStaff  = staff.filter(s => s.status === 'on-duty');
+  // Off duty: status === 'off-duty' (must have been on-duty first — enforced by flow)
+  const offStaff = staff.filter(s => s.status === 'off-duty');
 
   const onEl  = document.getElementById('onDutyText');
   const offEl = document.getElementById('offDutyText');
@@ -1024,6 +1135,34 @@ function copyText(type) {
     btn.classList.add('copied');
     setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
   });
+}
+
+// ── Working Today toggle ──────────────────────────────────────
+function toggleWorking(id) {
+  const s = staff.find(x => x.id === id);
+  if (!s) return;
+  if (s.status === 'not-working') {
+    s.status = 'working';
+  } else if (s.status === 'working') {
+    // Unmark — revert to not working (only safe before any duty time set)
+    s.status = 'not-working';
+    s.startTime = ''; s.endTime = '';
+  }
+  // If on-duty or off-duty, the toggle does nothing (already worked today)
+  saveStaffData();
+  render();
+}
+
+// ── New Day ───────────────────────────────────────────────────
+function confirmNewDay() { openModal('newDayModal'); }
+function doNewDay() {
+  staff.forEach(s => {
+    s.status = 'not-working';
+    s.startTime = ''; s.endTime = '';
+  });
+  saveStaffData();
+  closeModal('newDayModal');
+  render();
 }
 
 // ── Filter ────────────────────────────────────────────────────
@@ -1068,7 +1207,7 @@ function saveStaff() {
     const s = staff.find(x => x.id === editId);
     if (s) { s.name = name; s.dept = dept; s.photo = photo; }
   } else {
-    staff.push({ id: uid(), name, dept, photo, onDuty: false, startTime: '', endTime: '' });
+    staff.push({ id: uid(), name, dept, photo, status: 'not-working', startTime: '', endTime: '' });
   }
   saveStaffData();
   closeModal('staffModal');
@@ -1093,7 +1232,7 @@ function confirmDelete() {
 // ── Duty Modal ────────────────────────────────────────────────
 function openDutyModal(id) {
   const s = staff.find(x => x.id === id);
-  if (!s) return;
+  if (!s || s.status === 'not-working') return;
   dutyTarget = id;
   document.getElementById('dutyName').textContent = s.name;
   document.getElementById('dutyDept').textContent = s.dept;
@@ -1103,21 +1242,29 @@ function openDutyModal(id) {
   const label  = document.getElementById('dutyTimeLabel');
   const footer = document.getElementById('dutyFooter');
   const title  = document.getElementById('dutyModalTitle');
+  const dot    = '<svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="currentColor"/></svg> ';
 
-  if (s.onDuty) {
-    title.textContent = 'Set Off Duty';
-    badge.className   = 'duty-status-badge on';
-    badge.innerHTML   = '<svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="currentColor"/></svg> Currently On Duty since ' + (s.startTime || '—');
-    label.textContent = 'Off-Duty Time';
-    footer.innerHTML  = `<button class="btn btn-secondary" onclick="closeModal('dutyModal')">Cancel</button>
-                         <button class="btn btn-danger" onclick="setOffDuty()">Set Off Duty</button>`;
-  } else {
+  if (s.status === 'working') {
     title.textContent = 'Set On Duty';
-    badge.className   = 'duty-status-badge off';
-    badge.innerHTML   = '<svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="currentColor"/></svg> Currently Off Duty';
+    badge.className   = 'duty-status-badge working';
+    badge.innerHTML   = dot + 'Working today — not yet on duty';
     label.textContent = 'Start Time';
     footer.innerHTML  = `<button class="btn btn-secondary" onclick="closeModal('dutyModal')">Cancel</button>
                          <button class="btn btn-primary" onclick="setOnDuty()">Set On Duty</button>`;
+  } else if (s.status === 'on-duty') {
+    title.textContent = 'Set Off Duty';
+    badge.className   = 'duty-status-badge on';
+    badge.innerHTML   = dot + 'Currently On Duty since ' + (s.startTime || '—');
+    label.textContent = 'Off-Duty Time';
+    footer.innerHTML  = `<button class="btn btn-secondary" onclick="closeModal('dutyModal')">Cancel</button>
+                         <button class="btn btn-danger" onclick="setOffDuty()">Set Off Duty</button>`;
+  } else if (s.status === 'off-duty') {
+    title.textContent = 'Already Off Duty';
+    badge.className   = 'duty-status-badge off';
+    badge.innerHTML   = dot + 'Clocked out at ' + (s.endTime || '—');
+    label.textContent = 'Correct Off-Duty Time';
+    footer.innerHTML  = `<button class="btn btn-secondary" onclick="closeModal('dutyModal')">Close</button>
+                         <button class="btn btn-danger" onclick="setOffDuty()">Update Time</button>`;
   }
   openModal('dutyModal');
 }
@@ -1125,14 +1272,17 @@ function openDutyModal(id) {
 function setOnDuty() {
   const s = staff.find(x => x.id === dutyTarget);
   if (!s) return;
-  s.onDuty = true; s.startTime = document.getElementById('dutyTime').value; s.endTime = '';
+  s.status = 'on-duty';
+  s.startTime = document.getElementById('dutyTime').value;
+  s.endTime   = '';
   saveStaffData(); closeModal('dutyModal'); render();
 }
 
 function setOffDuty() {
   const s = staff.find(x => x.id === dutyTarget);
   if (!s) return;
-  s.onDuty = false; s.endTime = document.getElementById('dutyTime').value;
+  s.status  = 'off-duty';
+  s.endTime = document.getElementById('dutyTime').value;
   saveStaffData(); closeModal('dutyModal'); render();
 }
 
