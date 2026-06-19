@@ -433,6 +433,23 @@ function log(msg) {
   while (el.childNodes.length > 40) el.removeChild(el.lastChild);
 }
 
+/* ----------- DAMAGE TYPE COLOUR SYSTEM -----------
+   One shared map drives BOTH the floating damage numbers and the
+   attack/impact effects, so every damage type reads consistently.
+   Use dmgColor(type) everywhere instead of hard-coded colours. */
+const DMG = {
+  physical: "#e8edf5", // white / light grey — normal physical
+  archer:   "#7cff8a", // green
+  mage:     "#c08bff", // purple/blue
+  fire:     "#ff7a33", // red / orange
+  ice:      "#a6e6ff", // pale blue
+  cannon:   "#ffc24a", // orange/yellow — explosions / AOE
+  heal:     "#5dffa0", // green healing
+  crit:     "#ffe14d", // bright crit
+  enemy:    "#ff5252", // damage dealt TO the base
+};
+function dmgColor(type) { return DMG[type] || DMG.physical; }
+
 /* ============================================================
    0. GAME STATE MACHINE
    GS is the single source of truth for which screen shows and
@@ -571,7 +588,7 @@ function spawnEnemy(type, wave) {
     reward: Math.ceil(t.reward * waveRewardMul(wave)),
     dmg: t.dmg + wave * 0.6, r: t.r,
     flying: !!t.flying, fast: !!t.fast, boss: !!t.boss,
-    slowT: 0, slowAmt: 0, burnT: 0, burnDps: 0, flash: 0,
+    slowT: 0, slowAmt: 0, burnT: 0, burnDps: 0, burnTick: 0, burnEmit: 0, flash: 0,
   };
 }
 
@@ -694,13 +711,20 @@ function endRun() {
   log("Base destroyed on wave " + run.wave + ". Wave resets to 0; run buffs cleared.");
 }
 
-/* ---- Damage / kills ---- */
+/* ---- Damage / kills ----
+   opts: { type:"archer"|"mage"|... , crit:bool }
+   The floating number uses the damage type's colour (crit overrides
+   with the bright crit colour and a larger style). */
 function damageEnemy(e, amount, opts) {
   opts = opts || {};
   e.hp -= amount; e.flash = 0.12;
-  spawnText(e.x, e.y - e.r - 4, Math.round(amount), opts.crit ? "#ffca28" : "#fff", opts.crit);
+  const color = opts.crit ? DMG.crit : dmgColor(opts.type);
+  spawnText(e.x, e.y - e.r - 4, Math.round(amount), color, { crit: !!opts.crit });
   if (e.hp <= 0) killEnemy(e);
 }
+// Damage with no floating number (used by per-frame burn ticks, which
+// emit one combined fire number periodically instead — see update()).
+function damageEnemySilent(e, amount) { e.hp -= amount; }
 function killEnemy(e) {
   const idx = run.enemies.indexOf(e);
   if (idx === -1) return;
@@ -710,12 +734,11 @@ function killEnemy(e) {
   spawnText(e.x, e.y, "+" + reward, "#ffd54f");
   if (e.boss) onBossKilled();
 }
-function splashDamage(x, y, radius, dmg, source) {
+// Area damage. opts is passed straight through to damageEnemy so splash
+// numbers carry the correct damage-type colour.
+function splashDamage(x, y, radius, dmg, opts) {
   for (const e of run.enemies.slice()) {
-    if (Math.hypot(e.x - x, e.y - y) <= radius + e.r) {
-      damageEnemy(e, dmg);
-      if (source === "fire") applyBurn(e, dmg);
-    }
+    if (Math.hypot(e.x - x, e.y - y) <= radius + e.r) damageEnemy(e, dmg, opts);
   }
 }
 function applyBurn(e, baseDps, durMul) {
@@ -757,51 +780,58 @@ function unitAttack(id) {
 
   switch (id) {
     case "archer": {
+      // Quick green single-target projectiles.
       const shots = 1 + (hasBuff("archer_multi") ? 1 : 0);
-      for (let s = 0; s < shots; s++) { const e = nearestEnemyToBase(); if (!e) break; shoot(e.x, e.y, "#ffeb3b"); damageEnemy(e, dmgFor()); }
+      for (let s = 0; s < shots; s++) { const e = nearestEnemyToBase(); if (!e) break; shoot(e.x, e.y, DMG.archer, "arrow"); damageEnemy(e, dmgFor(), { type: "archer" }); }
       break;
     }
     case "ranger": {
+      // Like the archer but hunts fast/flying foes; also a quick green shot.
       let e = nearestEnemyTo(BASE.x, BASE.y, en => en.fast || en.flying) || nearestEnemyToBase();
-      if (e) { shoot(e.x, e.y, "#69f0ae"); damageEnemy(e, dmgFor() * ((e.fast || e.flying) ? 1.5 : 1)); }
+      if (e) { shoot(e.x, e.y, DMG.archer, "arrow"); damageEnemy(e, dmgFor() * ((e.fast || e.flying) ? 1.5 : 1), { type: "archer" }); }
       break;
     }
     case "assassin": {
       const e = strongestEnemy();
       if (e) { const strong = e.boss || e.type === "tank"; const mul = unitStat(id,"critMul") + tb("crit").add;
-        shoot(e.x, e.y, "#ff8a80"); damageEnemy(e, dmgFor() * (strong ? mul : 1), { crit: strong }); }
+        shoot(e.x, e.y, "#ff8a80", "arrow"); damageEnemy(e, dmgFor() * (strong ? mul : 1), { type: "physical", crit: strong }); }
       break;
     }
     case "mage": {
+      // Slow purple ORB (visually distinct from archer arrows) + splash burst.
       const e = nearestEnemyToBase();
       if (e) { let r = unitStat(id,"splash") + tb("splash").add; if (hasBuff("mage_splash")) r *= 1.6;
-        shoot(e.x, e.y, "#b388ff"); splashDamage(e.x, e.y, r, dmgFor()); }
+        shoot(e.x, e.y, DMG.mage, "orb"); boom(e.x, e.y, r, DMG.mage, "burst"); splashDamage(e.x, e.y, r, dmgFor(), { type: "mage" }); }
       break;
     }
     case "cannon": {
+      // Big orange area explosion.
       const e = nearestEnemyToBase();
       if (e) { const r = unitStat(id,"splash") + tb("splash").add; const d = dmgFor() * (hasBuff("cannon_area") ? 1.5 : 1);
-        boom(e.x, e.y, r); splashDamage(e.x, e.y, r, d); }
+        boom(e.x, e.y, r, DMG.cannon, "burst"); boom(e.x, e.y, r, DMG.cannon, "ring"); splashDamage(e.x, e.y, r, d, { type: "cannon" }); }
       break;
     }
     case "icewizard": {
+      // Pale-blue frost burst; clearly slows everything it hits.
       const e = nearestEnemyToBase();
       if (e) { const r = unitStat(id,"splash"); let slow = unitStat(id,"slow") + (unitTalentBonus(id,"slow").mul - 1);
         if (hasBuff("ice_strong")) slow = Math.min(0.9, slow + 0.3);
-        shoot(e.x, e.y, "#80d8ff");
-        for (const t of run.enemies.slice()) if (Math.hypot(t.x-e.x, t.y-e.y) <= r + t.r) { damageEnemy(t, dmgFor()); applySlow(t, slow, unitStat(id,"slowDur")); }
+        shoot(e.x, e.y, DMG.ice, "orb"); boom(e.x, e.y, r, DMG.ice, "ring");
+        for (const t of run.enemies.slice()) if (Math.hypot(t.x-e.x, t.y-e.y) <= r + t.r) { damageEnemy(t, dmgFor(), { type: "ice" }); applySlow(t, slow, unitStat(id,"slowDur")); }
       }
       break;
     }
     case "firewizard": {
+      // Direct hit + lingering burn (the burn ticks show as fire numbers in update()).
       const e = nearestEnemyToBase();
-      if (e) { const burn = unitStat(id,"burn") * tb("burn").mul * allDmgMul; shoot(e.x, e.y, "#ff7043"); damageEnemy(e, dmgFor()); applyBurn(e, burn); }
+      if (e) { const burn = unitStat(id,"burn") * tb("burn").mul * allDmgMul; shoot(e.x, e.y, DMG.fire, "orb"); damageEnemy(e, dmgFor(), { type: "fire" }); applyBurn(e, burn); }
       break;
     }
     case "knight": {
+      // Defends the zone in front of the wall: damages + slows enemies there.
       const guard = unitStat(id,"guard") + tb("guard").add;
       const slow = unitStat(id,"slow") * (1 + talentEffect("t_knight_block"));
-      for (const t of run.enemies) if (Math.hypot(t.x-BASE.x, t.y-BASE.y) <= guard) { damageEnemy(t, dmgFor()); applySlow(t, slow, 0.6); }
+      for (const t of run.enemies) if (Math.hypot(t.x-BASE.x, t.y-BASE.y) <= guard) { damageEnemy(t, dmgFor(), { type: "physical" }); applySlow(t, slow, 0.6); }
       break;
     }
     case "priest": {
@@ -815,7 +845,7 @@ function unitAttack(id) {
   }
 }
 function healBase(amt) {
-  if (run.baseHP < run.baseMaxHP) { run.baseHP = Math.min(run.baseMaxHP, run.baseHP + amt); spawnText(BASE.x + rand(-40,40), BASE.y - 30, "+" + Math.round(amt), "#69f0ae"); }
+  if (run.baseHP < run.baseMaxHP) { run.baseHP = Math.min(run.baseMaxHP, run.baseHP + amt); spawnText(BASE.x + rand(-40,40), BASE.y - 30, "+" + Math.round(amt), DMG.heal, { heal: true }); }
 }
 function healBaseSilent(amt) { if (run.baseHP < run.baseMaxHP) run.baseHP = Math.min(run.baseMaxHP, run.baseHP + amt); }
 function attackSpeedMul(id) {
@@ -826,10 +856,29 @@ function attackSpeedMul(id) {
   return m;
 }
 
-/* ---- Visual flourishes ---- */
-function spawnText(x, y, text, color, big) { run.effects.push({ kind:"text", x, y, text:""+text, color, life: big?0.9:0.6, t:0, big:!!big }); }
-function shoot(tx, ty, color) { run.projectiles.push({ x: BASE.x, y: BASE.y - 20, tx, ty, color, life:0.18, t:0 }); }
-function boom(x, y, r) { run.effects.push({ kind:"boom", x, y, r, life:0.3, t:0 }); }
+/* ---- Visual flourishes ----
+   Floating numbers spawn with random X/Y jitter and a little sideways
+   drift so repeated hits on the same enemy don't stack on top of each
+   other. Crit numbers live longer and render bigger/brighter; heal
+   numbers are flagged so they keep their "+" styling. */
+function spawnText(x, y, text, color, opts) {
+  opts = opts || {};
+  run.effects.push({
+    kind: "text",
+    x: x + rand(-14, 14),
+    y: y + rand(-10, 2),
+    vx: rand(-12, 12),          // sideways drift
+    text: "" + text, color,
+    crit: !!opts.crit, heal: !!opts.heal,
+    life: opts.crit ? 1.0 : (opts.heal ? 0.85 : 0.7), t: 0,
+  });
+}
+// style: "arrow" (thin fast line) | "orb" (travelling glowing ball, e.g. mage)
+function shoot(tx, ty, color, style) { run.projectiles.push({ x: BASE.x, y: BASE.y - 20, tx, ty, color, style: style || "arrow", life:0.18, t:0 }); }
+// style: "ring" (expanding outline) | "burst" (filled fading blob)
+function boom(x, y, r, color, style) { run.effects.push({ kind:"boom", x, y, r, color: color || DMG.cannon, style: style || "ring", life:0.35, t:0 }); }
+// Distinct click-AOE shockwave: translucent fill + bright dashed ring.
+function aoeBurst(x, y, r) { run.effects.push({ kind:"aoe", x, y, r, color: DMG.cannon, life:0.45, t:0 }); }
 
 /* ---- Update step (only runs in COMBAT) ---- */
 function update(dt) {
@@ -842,14 +891,23 @@ function update(dt) {
   }
   // Move + resolve
   for (const e of run.enemies.slice()) {
-    if (e.burnT > 0) { e.burnT -= dt; damageEnemy(e, e.burnDps * dt); if (e.hp <= 0) continue; }
+    // Burn damage-over-time: apply silently each frame but only emit ONE
+    // combined fire-coloured number a few times per second (keeps it readable).
+    if (e.burnT > 0) {
+      e.burnT -= dt;
+      const tick = e.burnDps * dt;
+      damageEnemySilent(e, tick); e.burnTick += tick; e.flash = Math.max(e.flash, 0.03);
+      e.burnEmit -= dt;
+      if (e.burnEmit <= 0) { e.burnEmit = 0.45; if (e.burnTick >= 1) { spawnText(e.x, e.y - e.r - 4, Math.round(e.burnTick), DMG.fire, {}); e.burnTick = 0; } }
+      if (e.hp <= 0) { killEnemy(e); continue; }
+    }
     let spd = e.spd; if (e.slowT > 0) { e.slowT -= dt; spd *= (1 - e.slowAmt); }
     if (e.flash > 0) e.flash -= dt;
     e.y += spd * dt;
     if (e.y >= BASE_LINE) {
       let dmg = e.dmg * (1 - talentEffect("base_armor"));
       run.baseHP -= dmg;
-      spawnText(BASE.x + rand(-50,50), BASE.y - 20, "-" + Math.round(dmg), "#ff5252");
+      spawnText(BASE.x + rand(-50,50), BASE.y - 20, "-" + Math.round(dmg), DMG.enemy, {});
       const idx = run.enemies.indexOf(e); if (idx > -1) run.enemies.splice(idx, 1);
       if (run.baseHP <= 0) { run.baseHP = 0; endRun(); return; }
     }
@@ -874,7 +932,7 @@ function update(dt) {
   // Effects
   for (const p of run.projectiles) p.t += dt;
   run.projectiles = run.projectiles.filter(p => p.t < p.life);
-  for (const fx of run.effects) { fx.t += dt; if (fx.kind === "text") fx.y -= 18 * dt; }
+  for (const fx of run.effects) { fx.t += dt; if (fx.kind === "text") { fx.y -= 22 * dt; fx.x += (fx.vx || 0) * dt; } }
   run.effects = run.effects.filter(fx => fx.t < fx.life);
 
   refreshCombatBar();
@@ -888,28 +946,68 @@ function render() {
   ctx.beginPath(); ctx.moveTo(0, BASE_LINE); ctx.lineTo(CANVAS_W, BASE_LINE); ctx.stroke(); ctx.setLineDash([]);
 
   if (run && run.active) {
-    if (persist.equipped.includes("knight")) {
-      const g = unitStat("knight","guard") + unitTalentBonus("knight","guard").add;
-      ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.beginPath(); ctx.arc(BASE.x, BASE.y, g, 0, Math.PI*2); ctx.stroke();
-    }
+    // ---- Knight defence zone: a clearly-visible arc in front of the wall ----
+    if (persist.equipped.includes("knight")) drawKnightZone();
+
+    // ---- Projectiles: arrows are thin fast lines; orbs are glowing balls ----
     for (const p of run.projectiles) {
       const k = p.t / p.life; const x = p.x + (p.tx-p.x)*k, y = p.y + (p.ty-p.y)*k;
-      ctx.strokeStyle = p.color; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(x,y); ctx.stroke(); ctx.lineWidth = 1;
+      if (p.style === "orb") {
+        ctx.strokeStyle = p.color; ctx.globalAlpha = 0.3; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x, y); ctx.stroke(); ctx.globalAlpha = 1; ctx.lineWidth = 1;
+        ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI*2); ctx.fill();
+      } else {
+        ctx.strokeStyle = p.color; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x, y); ctx.stroke(); ctx.lineWidth = 1;
+      }
     }
+
     for (const e of run.enemies) {
       ctx.fillStyle = e.flash > 0 ? "#fff" : e.t.color; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
       if (e.flying) { ctx.strokeStyle = "#fff"; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]); }
-      if (e.slowT > 0) { ctx.strokeStyle = "#80d8ff"; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1; }
-      if (e.burnT > 0) { ctx.fillStyle = "rgba(255,87,34,.5)"; ctx.beginPath(); ctx.arc(e.x, e.y, e.r+2, 0, Math.PI*2); ctx.fill(); }
+      // Slow: icy blue ring + inner tint + a small snowflake marker.
+      if (e.slowT > 0) {
+        ctx.strokeStyle = DMG.ice; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
+        ctx.fillStyle = "rgba(166,230,255,0.28)"; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = DMG.ice; ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.fillText("❄", e.x + e.r + 2, e.y - e.r);
+      }
+      // Burn: flickering orange glow.
+      if (e.burnT > 0) { ctx.fillStyle = "rgba(255,90,30,"+(0.35+Math.random()*0.25)+")"; ctx.beginPath(); ctx.arc(e.x, e.y, e.r+2, 0, Math.PI*2); ctx.fill(); }
       const bw = e.r*2, hpk = clamp(e.hp/e.maxHP, 0, 1);
       ctx.fillStyle = "#000"; ctx.fillRect(e.x-bw/2, e.y-e.r-8, bw, 4);
       ctx.fillStyle = e.boss ? "#ff5252" : "#66bb6a"; ctx.fillRect(e.x-bw/2, e.y-e.r-8, bw*hpk, 4);
       if (e.boss) { ctx.fillStyle = "#fff"; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center"; ctx.fillText("BOSS", e.x, e.y+4); }
     }
+
     for (const fx of run.effects) {
       const k = fx.t / fx.life;
-      if (fx.kind === "boom") { ctx.strokeStyle = "rgba(255,152,0,"+(1-k)+")"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(fx.x, fx.y, fx.r*(0.4+k), 0, Math.PI*2); ctx.stroke(); ctx.lineWidth = 1; }
-      else if (fx.kind === "text") { ctx.globalAlpha = 1-k; ctx.fillStyle = fx.color; ctx.font = (fx.big?"bold 18px":"bold 13px")+" sans-serif"; ctx.textAlign = "center"; ctx.fillText(fx.text, fx.x, fx.y); ctx.globalAlpha = 1; }
+      if (fx.kind === "boom") {
+        const rr = fx.r * (0.4 + k);
+        if (fx.style === "burst") {
+          ctx.globalAlpha = (1 - k) * 0.55; ctx.fillStyle = fx.color;
+          ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+        } else { // ring
+          ctx.globalAlpha = 1 - k; ctx.strokeStyle = fx.color; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.stroke(); ctx.lineWidth = 1; ctx.globalAlpha = 1;
+        }
+      } else if (fx.kind === "aoe") {
+        // Click shockwave — distinct from single-target click: filled blast + dashed ring.
+        const rr = fx.r * (0.3 + k * 0.9);
+        ctx.globalAlpha = (1 - k) * 0.30; ctx.fillStyle = fx.color;
+        ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1 - k; ctx.strokeStyle = "#fff4c2"; ctx.lineWidth = 3; ctx.setLineDash([7,5]);
+        ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1; ctx.globalAlpha = 1;
+      } else if (fx.kind === "text") {
+        ctx.globalAlpha = clamp(1 - k, 0, 1); ctx.fillStyle = fx.color;
+        ctx.textAlign = "center";
+        if (fx.crit) {
+          ctx.font = "bold 22px sans-serif"; ctx.shadowColor = fx.color; ctx.shadowBlur = 8;
+          ctx.fillText(fx.text + "!", fx.x, fx.y); ctx.shadowBlur = 0;
+        } else {
+          ctx.font = "bold " + (fx.heal ? 15 : 13) + "px sans-serif";
+          ctx.fillText(fx.text, fx.x, fx.y);
+        }
+        ctx.globalAlpha = 1;
+      }
     }
   }
   drawBase();
@@ -927,6 +1025,22 @@ function drawBase() {
   ctx.font = "18px sans-serif"; ctx.textAlign = "center";
   for (let i = 0; i < persist.equipped.length; i++) { const id = persist.equipped[i]; ctx.fillText(UNITS[id].emoji, BASE.x - 40 + i*20, BASE.y - BASE.h/2 - 6); }
 }
+/* Knight's defensive zone — a transparent arc + dashed outline in front of
+   the wall, with a label, so the player can see exactly where the knight
+   guards. Enemies inside this zone are damaged and slowed each attack. */
+function drawKnightZone() {
+  const g = unitStat("knight","guard") + unitTalentBonus("knight","guard").add;
+  // Filled translucent upper half-disc (the side enemies approach from).
+  ctx.fillStyle = "rgba(120,170,255,0.08)";
+  ctx.beginPath(); ctx.arc(BASE.x, BASE.y, g, Math.PI, 2*Math.PI); ctx.lineTo(BASE.x, BASE.y); ctx.closePath(); ctx.fill();
+  // Dashed boundary so the range is obvious.
+  ctx.strokeStyle = "rgba(150,185,255,0.55)"; ctx.lineWidth = 2; ctx.setLineDash([7,6]);
+  ctx.beginPath(); ctx.arc(BASE.x, BASE.y, g, Math.PI, 2*Math.PI); ctx.stroke();
+  ctx.setLineDash([]); ctx.lineWidth = 1;
+  // Label/icon for the zone.
+  ctx.fillStyle = "rgba(190,210,255,0.9)"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("🛡️ Knight Guard", BASE.x, BASE.y - g - 6);
+}
 function loop() {
   const now = performance.now(); let dt = (now - lastTime) / 1000; lastTime = now;
   dt = Math.min(dt, 0.05);
@@ -943,26 +1057,31 @@ canvas.addEventListener("click", (ev) => {
   const my = (ev.clientY - rect.top) * (CANVAS_H / rect.height);
 
   // A shot always fires toward the clicked point (even into empty space).
-  shoot(mx, my, "#ffffff");
+  shoot(mx, my, "#ffffff", "arrow");
 
   let dmg = clickDamage();
   let crit = false;
   if (Math.random() < talentEffect("click_crit")) { dmg *= 3; crit = true; }
 
-  // Direct hit: nearest enemy near the clicked point takes full click damage.
+  // Direct hit: nearest enemy near the clicked point takes full (physical) click damage.
   let target = null, bestD = Infinity;
   for (const e of run.enemies) { const d = Math.hypot(e.x-mx, e.y-my); if (d <= e.r + 16 && d < bestD) { bestD = d; target = e; } }
   if (target) {
-    damageEnemy(target, dmg, { crit });
-    // Click Splash talent: splash around the struck enemy.
+    damageEnemy(target, dmg, { type: "physical", crit });
+    // Click Splash talent: a small physical splash around the struck enemy.
     const sr = talentEffect("click_splash");
-    if (sr > 0) splashDamage(target.x, target.y, sr, dmg * 0.5);
+    if (sr > 0) splashDamage(target.x, target.y, sr, dmg * 0.5, { type: "physical" });
   }
 
-  // Click Shockwave (AOE) talent: always blasts the clicked position.
-  // Starts small (1 rank) and grows in radius + damage with the click damage.
+  // Click Shockwave (AOE) talent: always blasts the clicked position with a
+  // distinct burst+ring visual. Radius (talentEffect) and damage both grow
+  // with rank; enemies inside the ring take orange explosion-typed damage.
   const aoeR = talentEffect("click_aoe");
-  if (aoeR > 0) { boom(mx, my, aoeR); splashDamage(mx, my, aoeR, dmg * 0.6); }
+  if (aoeR > 0) {
+    aoeBurst(mx, my, aoeR);
+    const aoeRank = talentRank("click_aoe");
+    splashDamage(mx, my, aoeR, dmg * (0.5 + 0.1 * aoeRank), { type: "cannon" });
+  }
 });
 
 /* ============================================================
