@@ -1606,10 +1606,10 @@ function renderTracker() {
             </button>
           </td>
           <td><input class="time-input" type="time" value="${esc(row.on)}"
-                onchange="saveTimeEntry('${currentCycle}','${dk}','on',this.value)"
+                onblur="saveTimeEntry('${currentCycle}','${dk}','on',this.value)"
                 ${isDayOff ? 'disabled' : ''}></td>
           <td><input class="time-input" type="time" value="${esc(row.off)}"
-                onchange="saveTimeEntry('${currentCycle}','${dk}','off',this.value)"
+                onblur="saveTimeEntry('${currentCycle}','${dk}','off',this.value)"
                 ${isDayOff ? 'disabled' : ''}></td>
           <td class="hours-cell ${gross !== null ? 'has-hours' : 'empty-hours'}">${isDayOff ? '<span style="color:#94a3b8;font-size:.75rem;font-style:italic">Day off</span>' : hCell(gross)}</td>
           <td style="text-align:center">${isDayOff ? '<span style="font-size:.9rem">🌴</span>' : ''}</td>
