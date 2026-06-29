@@ -219,6 +219,12 @@ button.danger { border-color: var(--bad); color: var(--bad); }
 }
 .choice:hover { border-color:var(--accent-2); transform:translateY(-3px); }
 .choice.selected { border-color: var(--good); background:#23351f; }
+.choice.cursed { border-color:#a3415a; background:linear-gradient(180deg,#2a1822,#241420); position:relative; }
+.choice.cursed:hover { border-color:#ff5c8a; }
+.choice.cursed.selected { border-color: var(--good); }
+.choice.cursed .cname { color:#ff90ad; }
+.curse-badge { position:absolute; top:6px; right:6px; font-size:9px; font-weight:bold; letter-spacing:.5px;
+  color:#ff90ad; background:rgba(163,65,90,.25); border:1px solid #a3415a; border-radius:999px; padding:2px 6px; }
 .choice .cicon { font-size:34px; }
 .choice .cname { font-weight:bold; margin:8px 0 4px; }
 .choice .cdesc { font-size:12px; color:var(--muted); }
@@ -359,6 +365,7 @@ button.danger { border-color: var(--bad); color: var(--bad); }
 
         <h3>Boss Rewards (temporary)</h3>
         <p>When a boss dies the game pauses and offers <b>3 temporary buffs</b>. Pick one to continue. These last <b>only for the current run</b> and reset when you die.</p>
+        <p>Some choices are <b style="color:#ff90ad">☠ Cursed</b> — they grant a powerful boon but come with a real downside (for example <i>Pyromancer's Pact: 3× fire damage but half physical damage</i>). High risk, high reward.</p>
 
         <h3>Permanent Upgrades &amp; Talents</h3>
         <p>Spend coins to buy talent points, then unlock permanent upgrades across four branches: Click, Units (general), Specific units, and Defence. These are kept forever.</p>
@@ -644,8 +651,23 @@ function nextTPCost() { return Math.ceil(100 * Math.pow(1.18, persist.tpBought))
 
 /* ============================================================
    6. BOSS UPGRADES (temporary, reset on death)
+   Data-driven modifiers so new buffs are trivial to add:
+     dmgMul:{type:mult}  scales a damage TYPE (physical/archer/mage/
+                         fire/ice/cannon) — applied in damageEnemy().
+     allDmgMul           multiplies ALL unit damage.
+     baseHpMul           multiplies base max HP.
+     dmgTakenMul         multiplies damage the base takes (>1 = curse).
+     atkSpeedAdd         flat addition to unit attack-speed multiplier.
+     coinMul             multiplies coin rewards.
+     lifesteal           heal base by this fraction of max HP per kill.
+     regenAdd            flat HP/sec base regen.
+   `cursed:true` flags a high-risk choice (styled red) that pairs a big
+   bonus with a real downside.
+   A few legacy buffs (archer_multi, mage_splash, etc.) are still handled
+   by name via hasBuff() where their effect is too specific to tabulate.
    ============================================================ */
 const BOSS_UPGRADES = [
+  // ---- Standard buffs ----
   { id:"click2x",     icon:"👆", name:"Power Clicks", desc:"Double click damage this run." },
   { id:"atkspd",      icon:"⚡", name:"Frenzy",       desc:"Units attack 25% faster this run." },
   { id:"basehp",      icon:"🧱", name:"Fortify",      desc:"+50% base max HP this run (and heal)." },
@@ -656,10 +678,38 @@ const BOSS_UPGRADES = [
   { id:"priest_fast", icon:"✨", name:"Blessing",     desc:"Priests heal 50% faster this run." },
   { id:"fire_long",   icon:"🔥", name:"Wildfire",     desc:"Fire burn lasts twice as long this run." },
   { id:"ice_strong",  icon:"❄️", name:"Deep Freeze",  desc:"Ice slow is much stronger this run." },
-  { id:"alldmg",      icon:"💥", name:"Overcharge",   desc:"+30% all unit damage this run." },
-  { id:"regen",       icon:"💗", name:"Field Medic",  desc:"+3 HP/sec base regen this run." },
+  { id:"alldmg",      icon:"💥", name:"Overcharge",   desc:"+30% all unit damage this run.", allDmgMul:1.3 },
+  { id:"regen",       icon:"💗", name:"Field Medic",  desc:"+3 HP/sec base regen this run.", regenAdd:3 },
+  // ---- Extra variety buffs ----
+  { id:"sharpshooter",icon:"🎯", name:"Sharpshooter", desc:"+100% Archer & Ranger damage this run.", dmgMul:{archer:2} },
+  { id:"arcane_surge",icon:"🌀", name:"Arcane Surge",  desc:"+120% Mage damage this run.",            dmgMul:{mage:2.2} },
+  { id:"demolition",  icon:"🧨", name:"Demolition",    desc:"+120% Cannon damage this run.",          dmgMul:{cannon:2.2} },
+  { id:"inferno",     icon:"🔥", name:"Inferno",       desc:"+100% Fire damage this run.",            dmgMul:{fire:2} },
+  { id:"permafrost",  icon:"🧊", name:"Permafrost",    desc:"+100% Ice damage this run.",             dmgMul:{ice:2} },
+  { id:"bulwark",     icon:"🛡️", name:"Bulwark",       desc:"Base takes 30% less damage this run.",   dmgTakenMul:0.7 },
+  { id:"swift_hands", icon:"🤹", name:"Swift Hands",   desc:"Units attack 40% faster this run.",      atkSpeedAdd:0.4 },
+  { id:"fortune",     icon:"🍀", name:"Fortune",       desc:"Earn 50% more coins this run.",          coinMul:1.5 },
+  { id:"vampiric",    icon:"🩸", name:"Vampiric Walls",desc:"Heal 2% of base max HP per kill this run.", lifesteal:0.02 },
+  { id:"juggernaut",  icon:"🏰", name:"Juggernaut",    desc:"+80% base max HP this run (and heal).",  baseHpMul:1.8 },
+  { id:"warlord",     icon:"⚔️", name:"Warlord",       desc:"+50% all unit damage this run.",         allDmgMul:1.5 },
+  // ---- CURSED buffs: a big boon paired with a real penalty ----
+  { id:"pyromancer",  icon:"😈", name:"Pyromancer's Pact", cursed:true, desc:"3× Fire damage, but HALF physical damage this run.", dmgMul:{fire:3, physical:0.5} },
+  { id:"glass_cannon",icon:"💎", name:"Glass Cannon",      cursed:true, desc:"+150% all unit damage, but base max HP halved this run.", allDmgMul:2.5, baseHpMul:0.5 },
+  { id:"blood_ritual",icon:"🧛", name:"Blood Ritual",      cursed:true, desc:"Triple coins, but base takes +40% damage this run.", coinMul:3, dmgTakenMul:1.4 },
+  { id:"frozen_heart",icon:"❄️", name:"Frozen Heart",      cursed:true, desc:"3× Ice damage & stronger slow, but Fire damage cut to 25% this run.", dmgMul:{ice:3, fire:0.25} },
+  { id:"berserker",   icon:"🪓", name:"Berserker Rage",    cursed:true, desc:"+120% physical damage & +50% attack speed, but base regen disabled & base takes +20% damage.", dmgMul:{physical:2.2}, atkSpeedAdd:0.5, dmgTakenMul:1.2, noRegen:true },
+  { id:"reckless",    icon:"💀", name:"Reckless Assault",  cursed:true, desc:"Units attack 80% faster, but deal 30% less damage this run.", atkSpeedAdd:0.8, allDmgMul:0.7 },
+  { id:"overclock",   icon:"🔋", name:"Overclock",         cursed:true, desc:"+200% click damage, but units deal 40% less damage this run.", clickMul:3, allDmgMul:0.6 },
 ];
+// id -> buff lookup, for the data-driven modifier helpers below.
+const BU = Object.fromEntries(BOSS_UPGRADES.map(b => [b.id, b]));
 function hasBuff(id) { return run && run.buffs.includes(id); }
+// Combine a numeric field across all active buffs (sum for additive, product for multiplicative).
+function buffSum(field)  { let s = 0; if (!run) return 0; for (const id of run.buffs) { const b = BU[id]; if (b && b[field] != null) s += b[field]; } return s; }
+function buffProd(field) { let p = 1; if (!run) return 1; for (const id of run.buffs) { const b = BU[id]; if (b && b[field] != null) p *= b[field]; } return p; }
+function buffFlag(field) { if (!run) return false; for (const id of run.buffs) { const b = BU[id]; if (b && b[field]) return true; } return false; }
+// Per damage-type multiplier from active buffs/curses (e.g. Pyromancer 3× fire, ½ physical).
+function typeMul(type) { let m = 1; if (!run || !type) return 1; for (const id of run.buffs) { const b = BU[id]; if (b && b.dmgMul && b.dmgMul[type] != null) m *= b.dmgMul[type]; } return m; }
 
 /* ============================================================
    7. GAME LOOP
@@ -676,11 +726,13 @@ let unitTimers = {};
 function computeBaseMaxHP() {
   let hp = 100 + talentEffect("base_hp");
   if (hasBuff("basehp")) hp *= 1.5;
+  hp *= buffProd("baseHpMul");      // e.g. Juggernaut +80%, Glass Cannon ½
   return Math.floor(hp);
 }
 function clickDamage() {
   let d = 1 + talentEffect("click_dmg");
   if (hasBuff("click2x")) d *= 2;
+  d *= buffProd("clickMul");        // e.g. Overclock +200%
   return d;
 }
 
@@ -718,6 +770,7 @@ function endRun() {
    with the bright crit colour and a larger style). */
 function damageEnemy(e, amount, opts) {
   opts = opts || {};
+  amount *= typeMul(opts.type);   // cursed/typed buffs scale damage by type (Pyromancer, etc.)
   e.hp -= amount; e.flash = 0.12;
   const color = opts.crit ? DMG.crit : dmgColor(opts.type);
   spawnText(e.x, e.y - e.r - 4, Math.round(amount), color, { crit: !!opts.crit });
@@ -730,9 +783,14 @@ function killEnemy(e) {
   const idx = run.enemies.indexOf(e);
   if (idx === -1) return;
   run.enemies.splice(idx, 1);
-  let reward = e.reward; if (hasBuff("coins")) reward = Math.ceil(reward * 1.25);
+  let reward = e.reward;
+  if (hasBuff("coins")) reward *= 1.25;
+  reward = Math.ceil(reward * buffProd("coinMul"));   // Fortune / Blood Ritual
   persist.coins += reward;
   spawnText(e.x, e.y, "+" + reward, "#ffd54f");
+  // Vampiric Walls: heal a fraction of base max HP on each kill.
+  const ls = buffSum("lifesteal");
+  if (ls > 0) healBase(run.baseMaxHP * ls);
   if (e.boss) onBossKilled();
 }
 // Area damage. opts is passed straight through to damageEnemy so splash
@@ -744,7 +802,7 @@ function splashDamage(x, y, radius, dmg, opts) {
 }
 function applyBurn(e, baseDps, durMul) {
   let dur = 3 * (durMul || 1); if (hasBuff("fire_long")) dur *= 2;
-  e.burnT = Math.max(e.burnT, dur); e.burnDps = Math.max(e.burnDps, baseDps);
+  e.burnT = Math.max(e.burnT, dur); e.burnDps = Math.max(e.burnDps, baseDps * typeMul("fire"));
 }
 function applySlow(e, amount, dur) {
   if (amount <= 0) return;
@@ -775,7 +833,7 @@ function engineerBuffMul() {
   return 1 + unitStat("engineer", "buff") * (1 + talentEffect("t_eng_buff"));
 }
 function unitAttack(id) {
-  const allDmgMul = (1 + talentEffect("all_dmg")) * (hasBuff("alldmg") ? 1.3 : 1) * engineerBuffMul();
+  const allDmgMul = (1 + talentEffect("all_dmg")) * buffProd("allDmgMul") * engineerBuffMul();
   const tb = unitTalentBonus.bind(null, id);
   function dmgFor() { return unitStat(id, "dmg") * tb("dmg").mul * allDmgMul; }
 
@@ -816,7 +874,7 @@ function unitAttack(id) {
       // Pale-blue frost burst; clearly slows everything it hits.
       const e = nearestEnemyToBase();
       if (e) { const r = unitStat(id,"splash"); let slow = unitStat(id,"slow") + (unitTalentBonus(id,"slow").mul - 1);
-        if (hasBuff("ice_strong")) slow = Math.min(0.9, slow + 0.3);
+        if (hasBuff("ice_strong") || hasBuff("frozen_heart")) slow = Math.min(0.9, slow + 0.3);
         shoot(e.x, e.y, DMG.ice, "orb"); boom(e.x, e.y, r, DMG.ice, "ring");
         for (const t of run.enemies.slice()) if (Math.hypot(t.x-e.x, t.y-e.y) <= r + t.r) { damageEnemy(t, dmgFor(), { type: "ice" }); applySlow(t, slow, unitStat(id,"slowDur")); }
       }
@@ -852,6 +910,7 @@ function healBaseSilent(amt) { if (run.baseHP < run.baseMaxHP) run.baseHP = Math
 function attackSpeedMul(id) {
   let m = 1 + talentEffect("all_speed");
   if (hasBuff("atkspd")) m += 0.25;
+  m += buffSum("atkSpeedAdd");   // Swift Hands / Berserker / Reckless
   if (id === "archer") m += talentEffect("t_archer_spd");
   if (id === "priest" && hasBuff("priest_fast")) m += 0.5;
   return m;
@@ -906,7 +965,7 @@ function update(dt) {
     if (e.flash > 0) e.flash -= dt;
     e.y += spd * dt;
     if (e.y >= BASE_LINE) {
-      let dmg = e.dmg * (1 - talentEffect("base_armor"));
+      let dmg = e.dmg * (1 - talentEffect("base_armor")) * buffProd("dmgTakenMul"); // Bulwark / Blood Ritual / Berserker
       run.baseHP -= dmg;
       spawnText(BASE.x + rand(-50,50), BASE.y - 20, "-" + Math.round(dmg), DMG.enemy, {});
       const idx = run.enemies.indexOf(e); if (idx > -1) run.enemies.splice(idx, 1);
@@ -920,8 +979,8 @@ function update(dt) {
     unitTimers[i] = (unitTimers[i] || rand(0, cd)) - dt;
     if (unitTimers[i] <= 0) { unitTimers[i] = cd; unitAttack(id); if (GS !== "COMBAT") return; }
   }
-  // Regen
-  const regen = talentEffect("base_regen") + (hasBuff("regen") ? 3 : 0);
+  // Regen (Berserker's curse disables all base regen this run)
+  const regen = buffFlag("noRegen") ? 0 : talentEffect("base_regen") + buffSum("regenAdd");
   if (regen > 0) healBaseSilent(regen * dt);
 
   // Wave clear
@@ -1105,8 +1164,9 @@ function onBossKilled() {
   box.innerHTML = "";
   for (const o of opts) {
     const div = document.createElement("div");
-    div.className = "choice";
-    div.innerHTML = '<div class="cicon">'+o.icon+'</div><div class="cname">'+o.name+'</div><div class="cdesc">'+o.desc+'</div>';
+    div.className = "choice" + (o.cursed ? " cursed" : "");
+    const badge = o.cursed ? '<div class="curse-badge">☠ CURSED</div>' : '';
+    div.innerHTML = badge + '<div class="cicon">'+o.icon+'</div><div class="cname">'+o.name+'</div><div class="cdesc">'+o.desc+'</div>';
     div.onclick = () => {
       pendingBossChoice = o.id;
       [...box.children].forEach(c => c.classList.remove("selected"));
