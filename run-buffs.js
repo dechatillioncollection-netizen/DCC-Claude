@@ -33,40 +33,41 @@
      clickMul        number  multiplies click damage
      enemySpeedMul   number  multiplies speed of enemies spawned after the pick
      hpDrain         number  base loses this many HP/sec while in combat
+     mageSplashMul   number  multiplies Mage splash radius
+     extraShots      number  extra Archer projectiles (added)
+     burnDurMul      number  multiplies Fire Wizard burn duration
+     slowAdd         number  added to Ice Wizard slow fraction (capped 0.9)
+     priestHealMul   number  multiplies Priest heal amount
+     priestSpeedAdd  number  flat add to Priest attack speed (faster heals)
      noRegen         bool    disables ALL base regen
-     strongSlow      bool    boosts Ice Wizard slow (+0.15)
-     longBurn        bool    extends Fire Wizard burn duration (x1.5)
 
    All multipliers from multiple active buffs stack MULTIPLICATIVELY.
 
-   NOTE: A few "legacy" buffs are also recognised by their id directly in
-   game.html for effects too specific to tabulate here:
-     archer_multi (extra archer shot), mage_splash (+60% mage splash),
-     cannon_area (+50% cannon dmg), priest_fast (priests heal faster),
-     fire_long (x2 burn duration), ice_strong / frozen_heart (+0.3 slow),
-     click2x (x2 click), atkspd (+25% atk speed), basehp (+50% base HP),
-     coins (+25% coins). Keep those ids if you want those effects.
+   EVERY effect magnitude is read from these fields, so changing a number
+   here genuinely changes how the buff plays — not just its label. The
+   `id` is only an identifier; rename/retune freely. (Tip: to make a buff
+   stronger, raise its number; e.g. clickMul:2 -> clickMul:5.)
    ============================================================ */
 window.CD_RUN_BUFFS = [
-  // ---- Standard buffs ----
-  { id:"click2x",     icon:"👆", name:"Power Clicks", desc:"Double click damage this run." },
-  { id:"atkspd",      icon:"⚡", name:"Frenzy",       desc:"Units attack 25% faster this run." },
-  { id:"basehp",      icon:"🧱", name:"Fortify",      desc:"+50% base max HP this run (and heal)." },
-  { id:"coins",       icon:"💰", name:"Greed",        desc:"Earn 25% more coins this run." },
-  { id:"mage_splash", icon:"🔮", name:"Arcane Blast", desc:"Mages deal +60% splash this run." },
-  { id:"archer_multi",icon:"🏹", name:"Multishot",    desc:"Archers fire an extra shot this run." },
-  { id:"cannon_area", icon:"💣", name:"Heavy Ordnance",desc:"Cannons +50% area damage this run." },
-  { id:"priest_fast", icon:"✨", name:"Blessing",     desc:"Priests heal 50% faster this run." },
-  { id:"fire_long",   icon:"🔥", name:"Wildfire",     desc:"Fire burn lasts twice as long this run." },
-  { id:"ice_strong",  icon:"❄️", name:"Deep Freeze",  desc:"Ice slow is much stronger this run." },
+  // ---- Standard buffs (fully data-driven — edit the numbers to retune) ----
+  { id:"click2x",     icon:"👆", name:"Power Clicks", desc:"Double click damage this run.", clickMul:2 },
+  { id:"atkspd",      icon:"⚡", name:"Frenzy",       desc:"Units attack 25% faster this run.", atkSpeedAdd:0.25 },
+  { id:"basehp",      icon:"🧱", name:"Fortify",      desc:"+50% base max HP this run (and heal).", baseHpMul:1.5 },
+  { id:"coins",       icon:"💰", name:"Greed",        desc:"Earn 25% more coins this run.", coinMul:1.25 },
+  { id:"mage_splash", icon:"🔮", name:"Arcane Blast", desc:"Mages deal +60% splash this run.", mageSplashMul:1.6 },
+  { id:"archer_multi",icon:"🏹", name:"Multishot",    desc:"Archers fire an extra shot this run.", extraShots:1 },
+  { id:"cannon_area", icon:"💣", name:"Heavy Ordnance",desc:"Cannons +50% area damage this run.", dmgMul:{cannon:1.5} },
+  { id:"priest_fast", icon:"✨", name:"Blessing",     desc:"Priests heal 50% faster this run.", priestSpeedAdd:0.5 },
+  { id:"fire_long",   icon:"🔥", name:"Wildfire",     desc:"Fire burn lasts twice as long this run.", burnDurMul:2 },
+  { id:"ice_strong",  icon:"❄️", name:"Deep Freeze",  desc:"Ice slow is much stronger this run.", slowAdd:0.3 },
   { id:"alldmg",      icon:"💥", name:"Overcharge",   desc:"+30% all unit damage this run.", allDmgMul:1.3 },
   { id:"regen",       icon:"💗", name:"Field Medic",  desc:"+3 HP/sec base regen this run.", regenAdd:3 },
   // ---- Specialist (per-type) buffs ----
   { id:"eagle_eye",      icon:"🦅", name:"Eagle Eye",      desc:"+75% Archer & Ranger damage this run.", dmgMul:{archer:1.75} },
   { id:"arcane_battery", icon:"🔋", name:"Arcane Battery", desc:"+60% Mage damage & +15% attack speed this run.", dmgMul:{mage:1.6}, atkSpeedAdd:0.15 },
   { id:"siege_crew",     icon:"🏗️", name:"Siege Crew",     desc:"+90% Cannon damage this run.", dmgMul:{cannon:1.9} },
-  { id:"frostbite",      icon:"🥶", name:"Frostbite",      desc:"+80% Ice damage & slightly stronger slow this run.", dmgMul:{ice:1.8}, strongSlow:true },
-  { id:"burning_oil",    icon:"🛢️", name:"Burning Oil",    desc:"+80% Fire damage & longer burn this run.", dmgMul:{fire:1.8}, longBurn:true },
+  { id:"frostbite",      icon:"🥶", name:"Frostbite",      desc:"+80% Ice damage & slightly stronger slow this run.", dmgMul:{ice:1.8}, slowAdd:0.15 },
+  { id:"burning_oil",    icon:"🛢️", name:"Burning Oil",    desc:"+80% Fire damage & longer burn this run.", dmgMul:{fire:1.8}, burnDurMul:1.5 },
   { id:"sharpshooter",   icon:"🎯", name:"Sharpshooter",   desc:"+100% Archer & Ranger damage this run.", dmgMul:{archer:2} },
   { id:"arcane_surge",   icon:"🌀", name:"Arcane Surge",   desc:"+120% Mage damage this run.", dmgMul:{mage:2.2} },
   { id:"demolition",     icon:"🧨", name:"Demolition",     desc:"+120% Cannon damage this run.", dmgMul:{cannon:2.2} },
@@ -90,7 +91,7 @@ window.CD_RUN_BUFFS = [
   { id:"pyromancer",     icon:"😈", name:"Pyromancer's Pact", cursed:true, desc:"3× Fire damage, but HALF physical damage this run.", dmgMul:{fire:3, physical:0.5} },
   { id:"glass_cannon",   icon:"💎", name:"Glass Cannon",      cursed:true, desc:"+150% all unit damage, but base max HP halved this run.", allDmgMul:2.5, baseHpMul:0.5 },
   { id:"blood_ritual",   icon:"💸", name:"Blood Money",        cursed:true, desc:"3× coins, but base takes +40% damage this run.", coinMul:3, dmgTakenMul:1.4 },
-  { id:"frozen_heart",   icon:"❄️", name:"Frozen Heart",      cursed:true, desc:"3× Ice damage & stronger slow, but Fire damage cut to 25% this run.", dmgMul:{ice:3, fire:0.25}, strongSlow:true },
+  { id:"frozen_heart",   icon:"❄️", name:"Frozen Heart",      cursed:true, desc:"3× Ice damage & stronger slow, but Fire damage cut to 25% this run.", dmgMul:{ice:3, fire:0.25}, slowAdd:0.3 },
   { id:"berserker",      icon:"🪓", name:"Berserker Rage",    cursed:true, desc:"+120% physical damage & +50% attack speed, but no regen & base takes +20% damage.", dmgMul:{physical:2.2}, atkSpeedAdd:0.5, dmgTakenMul:1.2, noRegen:true },
   { id:"reckless",       icon:"💀", name:"Reckless Assault",  cursed:true, desc:"Units attack 80% faster, but deal 30% less damage this run.", atkSpeedAdd:0.8, allDmgMul:0.7 },
   { id:"overclock",      icon:"🖐️", name:"Overclocked Hands", cursed:true, desc:"+200% click damage, but unit damage reduced 40% this run.", clickMul:3, allDmgMul:0.6 },

@@ -127,6 +127,9 @@ button.danger { border-color: var(--bad); color: var(--bad); }
 #screen-menu .title p { color:#cfe0ff; margin: 6px 0 0; letter-spacing:2px; font-size:14px; }
 #screen-menu .menu-buttons { position: relative; z-index: 2; display:flex; flex-direction:column; gap:16px; }
 #screen-menu .footer { position:absolute; bottom:10px; width:100%; text-align:center; color:var(--muted); font-size:11px; z-index:2; }
+#screen-menu .menu-save { position:relative; z-index:2; display:flex; gap:10px; justify-content:center; margin-top:18px; }
+#screen-menu .menu-save button { background:rgba(20,26,42,.7); border-color:var(--gold); color:var(--gold); }
+#screen-menu .menu-save-msg { position:relative; z-index:2; text-align:center; font-size:12px; min-height:16px; margin-top:8px; color:var(--good); }
 
 /* ============================================================
    Shared top bars
@@ -156,6 +159,21 @@ button.danger { border-color: var(--bad); color: var(--bad); }
   border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
 }
 #canvas { display:block; width:100%; height:auto; cursor: crosshair; }
+
+/* Live damage meter overlay (top-right of the battlefield) */
+#dmgMeter {
+  position:absolute; top:10px; right:10px; width:182px;
+  background:rgba(12,15,23,.78); border:1px solid var(--border); border-radius:8px;
+  padding:8px; font-size:11px; pointer-events:none; backdrop-filter: blur(2px);
+}
+#dmgMeter .dm-title { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-bottom:6px; }
+.dm-row { margin-bottom:5px; }
+.dm-row .dm-head { display:flex; justify-content:space-between; gap:6px; margin-bottom:2px; }
+.dm-row .dm-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dm-row .dm-val { color:var(--muted); flex:none; }
+.dm-bar { height:6px; border-radius:3px; background:#2c3550; overflow:hidden; }
+.dm-bar > span { display:block; height:100%; border-radius:3px; }
+#dmgMeter .dm-empty { color:var(--muted); }
 
 /* ============================================================
    UPGRADES / INFO screens
@@ -278,6 +296,11 @@ button.danger { border-color: var(--bad); color: var(--bad); }
         <button class="menu-btn" id="mInfo">INFO</button>
         <button class="menu-btn" id="mQuit">QUIT</button>
       </div>
+      <div class="menu-save">
+        <button id="mExport">⬇ Save to File</button>
+        <button id="mImport">⬆ Load from File</button>
+      </div>
+      <div class="menu-save-msg" id="menuSaveMsg"></div>
       <div class="footer">Progress auto-saves to your browser.</div>
     </div>
   </section>
@@ -301,6 +324,8 @@ button.danger { border-color: var(--bad); color: var(--bad); }
     </div>
     <div id="battlefield">
       <canvas id="canvas" width="740" height="540"></canvas>
+      <!-- Live damage meter: who is dealing the most damage this run -->
+      <div id="dmgMeter"><div class="dm-title">Damage Meter</div><div id="dmRows"></div></div>
     </div>
     <div class="help" style="margin-top:8px;">Click anywhere on the battlefield to fire toward that spot. Surviving units fight automatically. Upgrades are locked until the run ends.</div>
   </section>
@@ -545,6 +570,7 @@ function setState(s) {
   if (s === "UPGRADES") refreshUI();
   if (s === "CHALLENGES") renderChallenges();
   if (s === "COMBAT" || s === "DEAD") refreshCombatBar();
+  if (s === "COMBAT") renderDamageMeter();
 }
 
 /* ============================================================
@@ -578,8 +604,13 @@ function freshRun() {
     buffs: [],          // temporary boss upgrades (ids) — reset on death
     spawnQueue: [], spawnTimer: 0,
     waveActive: false, interWaveTimer: 0,
+    challenge: null, challengeId: null,
+    dmg: {},            // damage meter: { source -> total damage this run }
+    meterTimer: 0,      // throttles the meter's DOM refresh
   };
 }
+// Record damage to the meter, keyed by source ("click" or a unit id).
+function trackDamage(src, amount) { if (run && src) run.dmg[src] = (run.dmg[src] || 0) + amount; }
 
 /* ============================================================
    3. UNIT DEFINITIONS
@@ -727,11 +758,17 @@ function nextTPCost() { return Math.ceil(100 * Math.pow(1.18, persist.tpBought))
      clickMul            multiplies click damage.
      enemySpeedMul       multiplies the speed of enemies spawned after pick.
      hpDrain             base loses this many HP/sec while in combat.
+     mageSplashMul       multiplies Mage splash radius.
+     extraShots          extra projectiles for the Archer (added).
+     burnDurMul          multiplies Fire Wizard burn duration.
+     slowAdd             added to Ice Wizard slow fraction (capped 0.9).
+     priestHealMul       multiplies Priest heal amount.
+     priestSpeedAdd      flat add to Priest attack speed (faster heals).
      noRegen   (flag)    disables all base regen.
-     strongSlow(flag)    boosts Ice Wizard slow (+0.15).
-     longBurn  (flag)    extends Fire Wizard burn duration (×1.5).
    `cursed:true` flags a high-risk choice (styled red) pairing a big
    bonus with a real downside. All multipliers stack multiplicatively.
+   EVERY magnitude above comes from these fields, so editing run-buffs.js
+   genuinely changes the buff's effect (not just its label).
 
    MODDING: this list can be overridden WITHOUT editing the HTML. If a
    `run-buffs.js` file sits next to game.html and defines
@@ -744,25 +781,25 @@ function nextTPCost() { return Math.ceil(100 * Math.pow(1.18, persist.tpBought))
    name via hasBuff() for effects too specific to tabulate.
    ============================================================ */
 const BUILTIN_RUN_BUFFS = [
-  // ---- Standard buffs ----
-  { id:"click2x",     icon:"👆", name:"Power Clicks", desc:"Double click damage this run." },
-  { id:"atkspd",      icon:"⚡", name:"Frenzy",       desc:"Units attack 25% faster this run." },
-  { id:"basehp",      icon:"🧱", name:"Fortify",      desc:"+50% base max HP this run (and heal)." },
-  { id:"coins",       icon:"💰", name:"Greed",        desc:"Earn 25% more coins this run." },
-  { id:"mage_splash", icon:"🔮", name:"Arcane Blast", desc:"Mages deal +60% splash this run." },
-  { id:"archer_multi",icon:"🏹", name:"Multishot",    desc:"Archers fire an extra shot this run." },
-  { id:"cannon_area", icon:"💣", name:"Heavy Ordnance",desc:"Cannons +50% area damage this run." },
-  { id:"priest_fast", icon:"✨", name:"Blessing",     desc:"Priests heal 50% faster this run." },
-  { id:"fire_long",   icon:"🔥", name:"Wildfire",     desc:"Fire burn lasts twice as long this run." },
-  { id:"ice_strong",  icon:"❄️", name:"Deep Freeze",  desc:"Ice slow is much stronger this run." },
+  // ---- Standard buffs (now fully data-driven — edit the numbers to retune) ----
+  { id:"click2x",     icon:"👆", name:"Power Clicks", desc:"Double click damage this run.", clickMul:2 },
+  { id:"atkspd",      icon:"⚡", name:"Frenzy",       desc:"Units attack 25% faster this run.", atkSpeedAdd:0.25 },
+  { id:"basehp",      icon:"🧱", name:"Fortify",      desc:"+50% base max HP this run (and heal).", baseHpMul:1.5 },
+  { id:"coins",       icon:"💰", name:"Greed",        desc:"Earn 25% more coins this run.", coinMul:1.25 },
+  { id:"mage_splash", icon:"🔮", name:"Arcane Blast", desc:"Mages deal +60% splash this run.", mageSplashMul:1.6 },
+  { id:"archer_multi",icon:"🏹", name:"Multishot",    desc:"Archers fire an extra shot this run.", extraShots:1 },
+  { id:"cannon_area", icon:"💣", name:"Heavy Ordnance",desc:"Cannons +50% area damage this run.", dmgMul:{cannon:1.5} },
+  { id:"priest_fast", icon:"✨", name:"Blessing",     desc:"Priests heal 50% faster this run.", priestSpeedAdd:0.5 },
+  { id:"fire_long",   icon:"🔥", name:"Wildfire",     desc:"Fire burn lasts twice as long this run.", burnDurMul:2 },
+  { id:"ice_strong",  icon:"❄️", name:"Deep Freeze",  desc:"Ice slow is much stronger this run.", slowAdd:0.3 },
   { id:"alldmg",      icon:"💥", name:"Overcharge",   desc:"+30% all unit damage this run.", allDmgMul:1.3 },
   { id:"regen",       icon:"💗", name:"Field Medic",  desc:"+3 HP/sec base regen this run.", regenAdd:3 },
   // ---- Specialist (per-type) buffs ----
   { id:"eagle_eye",      icon:"🦅", name:"Eagle Eye",      desc:"+75% Archer & Ranger damage this run.", dmgMul:{archer:1.75} },
   { id:"arcane_battery", icon:"🔋", name:"Arcane Battery", desc:"+60% Mage damage & +15% attack speed this run.", dmgMul:{mage:1.6}, atkSpeedAdd:0.15 },
   { id:"siege_crew",     icon:"🏗️", name:"Siege Crew",     desc:"+90% Cannon damage this run.", dmgMul:{cannon:1.9} },
-  { id:"frostbite",      icon:"🥶", name:"Frostbite",      desc:"+80% Ice damage & slightly stronger slow this run.", dmgMul:{ice:1.8}, strongSlow:true },
-  { id:"burning_oil",    icon:"🛢️", name:"Burning Oil",    desc:"+80% Fire damage & longer burn this run.", dmgMul:{fire:1.8}, longBurn:true },
+  { id:"frostbite",      icon:"🥶", name:"Frostbite",      desc:"+80% Ice damage & slightly stronger slow this run.", dmgMul:{ice:1.8}, slowAdd:0.15 },
+  { id:"burning_oil",    icon:"🛢️", name:"Burning Oil",    desc:"+80% Fire damage & longer burn this run.", dmgMul:{fire:1.8}, burnDurMul:1.5 },
   { id:"sharpshooter",   icon:"🎯", name:"Sharpshooter",   desc:"+100% Archer & Ranger damage this run.", dmgMul:{archer:2} },
   { id:"arcane_surge",   icon:"🌀", name:"Arcane Surge",   desc:"+120% Mage damage this run.", dmgMul:{mage:2.2} },
   { id:"demolition",     icon:"🧨", name:"Demolition",     desc:"+120% Cannon damage this run.", dmgMul:{cannon:2.2} },
@@ -786,7 +823,7 @@ const BUILTIN_RUN_BUFFS = [
   { id:"pyromancer",     icon:"😈", name:"Pyromancer's Pact", cursed:true, desc:"3× Fire damage, but HALF physical damage this run.", dmgMul:{fire:3, physical:0.5} },
   { id:"glass_cannon",   icon:"💎", name:"Glass Cannon",      cursed:true, desc:"+150% all unit damage, but base max HP halved this run.", allDmgMul:2.5, baseHpMul:0.5 },
   { id:"blood_ritual",   icon:"💸", name:"Blood Money",        cursed:true, desc:"3× coins, but base takes +40% damage this run.", coinMul:3, dmgTakenMul:1.4 },
-  { id:"frozen_heart",   icon:"❄️", name:"Frozen Heart",      cursed:true, desc:"3× Ice damage & stronger slow, but Fire damage cut to 25% this run.", dmgMul:{ice:3, fire:0.25}, strongSlow:true },
+  { id:"frozen_heart",   icon:"❄️", name:"Frozen Heart",      cursed:true, desc:"3× Ice damage & stronger slow, but Fire damage cut to 25% this run.", dmgMul:{ice:3, fire:0.25}, slowAdd:0.3 },
   { id:"berserker",      icon:"🪓", name:"Berserker Rage",    cursed:true, desc:"+120% physical damage & +50% attack speed, but no regen & base takes +20% damage.", dmgMul:{physical:2.2}, atkSpeedAdd:0.5, dmgTakenMul:1.2, noRegen:true },
   { id:"reckless",       icon:"💀", name:"Reckless Assault",  cursed:true, desc:"Units attack 80% faster, but deal 30% less damage this run.", atkSpeedAdd:0.8, allDmgMul:0.7 },
   { id:"overclock",      icon:"🖐️", name:"Overclocked Hands", cursed:true, desc:"+200% click damage, but unit damage reduced 40% this run.", clickMul:3, allDmgMul:0.6 },
@@ -799,8 +836,8 @@ const BUILTIN_RUN_BUFFS = [
 // Returns a cleaned array, or null if nothing usable was found.
 function sanitizeBuffList(list) {
   if (!Array.isArray(list)) return null;
-  const numFields = ["allDmgMul","baseHpMul","dmgTakenMul","atkSpeedAdd","coinMul","lifesteal","regenAdd","clickMul","enemySpeedMul","hpDrain"];
-  const flagFields = ["noRegen","strongSlow","longBurn"];
+  const numFields = ["allDmgMul","baseHpMul","dmgTakenMul","atkSpeedAdd","coinMul","lifesteal","regenAdd","clickMul","enemySpeedMul","hpDrain","mageSplashMul","extraShots","burnDurMul","slowAdd","priestHealMul","priestSpeedAdd"];
+  const flagFields = ["noRegen"];
   const dmgTypes = ["physical","archer","mage","fire","ice","cannon"];
   const out = [], seen = new Set();
   for (const b of list) {
@@ -866,15 +903,13 @@ let unitTimers = {};
 
 function computeBaseMaxHP() {
   let hp = 100 + talentEffect("base_hp");
-  if (hasBuff("basehp")) hp *= 1.5;
-  hp *= buffProd("baseHpMul");      // e.g. Juggernaut +80%, Glass Cannon ½
+  hp *= buffProd("baseHpMul");      // Fortify ×1.5 / Juggernaut ×1.8 / Glass Cannon ×0.5 …
   hp *= chMul("baseHpMul");         // Fragile Base challenge halves it
   return Math.max(1, Math.floor(hp));
 }
 function clickDamage() {
   let d = 1 + talentEffect("click_dmg");
-  if (hasBuff("click2x")) d *= 2;
-  d *= buffProd("clickMul");        // e.g. Overclock +200%
+  d *= buffProd("clickMul");        // Power Clicks ×2 / Piercing Focus ×2 / Overclock ×3 …
   return d;
 }
 
@@ -918,6 +953,8 @@ function endRun() {
 function damageEnemy(e, amount, opts) {
   opts = opts || {};
   amount *= typeMul(opts.type);   // cursed/typed buffs scale damage by type (Pyromancer, etc.)
+  // Only count damage actually dealt (don't over-credit overkill) for the meter.
+  trackDamage(opts.src, Math.max(0, Math.min(amount, e.hp)));
   e.hp -= amount; e.flash = 0.12;
   const color = opts.crit ? DMG.crit : dmgColor(opts.type);
   spawnText(e.x, e.y - e.r - 4, Math.round(amount), color, { crit: !!opts.crit });
@@ -925,14 +962,12 @@ function damageEnemy(e, amount, opts) {
 }
 // Damage with no floating number (used by per-frame burn ticks, which
 // emit one combined fire number periodically instead — see update()).
-function damageEnemySilent(e, amount) { e.hp -= amount; }
+function damageEnemySilent(e, amount, src) { trackDamage(src, Math.max(0, Math.min(amount, e.hp))); e.hp -= amount; }
 function killEnemy(e) {
   const idx = run.enemies.indexOf(e);
   if (idx === -1) return;
   run.enemies.splice(idx, 1);
-  let reward = e.reward;
-  if (hasBuff("coins")) reward *= 1.25;
-  reward = Math.ceil(reward * buffProd("coinMul") * chMul("coinMul"));   // buffs (Fortune/Coin Storm/Blood Money…) + challenges
+  let reward = Math.ceil(e.reward * buffProd("coinMul") * chMul("coinMul"));   // Greed/Fortune/Coin Storm/Blood Money + challenges
   persist.coins += reward;
   spawnText(e.x, e.y, "+" + reward, "#ffd54f");
   // Vampiric Walls: heal a fraction of base max HP on each kill.
@@ -948,8 +983,9 @@ function splashDamage(x, y, radius, dmg, opts) {
   }
 }
 function applyBurn(e, baseDps, durMul) {
-  let dur = 3 * (durMul || 1); if (hasBuff("fire_long")) dur *= 2; if (buffFlag("longBurn")) dur *= 1.5; // Burning Oil
+  let dur = 3 * (durMul || 1) * buffProd("burnDurMul"); // Wildfire ×2 / Burning Oil ×1.5
   e.burnT = Math.max(e.burnT, dur); e.burnDps = Math.max(e.burnDps, baseDps * typeMul("fire"));
+  e.burnSrc = "firewizard";   // attribute burn ticks to the fire wizard in the meter
 }
 function applySlow(e, amount, dur) {
   if (amount <= 0) return;
@@ -986,64 +1022,62 @@ function unitAttack(id) {
 
   switch (id) {
     case "archer": {
-      // Quick green single-target projectiles.
-      const shots = 1 + (hasBuff("archer_multi") ? 1 : 0);
-      for (let s = 0; s < shots; s++) { const e = nearestEnemyToBase(); if (!e) break; shoot(e.x, e.y, DMG.archer, "arrow"); damageEnemy(e, dmgFor(), { type: "archer" }); }
+      // Quick green single-target projectiles. Multishot adds extra shots.
+      const shots = 1 + Math.floor(buffSum("extraShots"));
+      for (let s = 0; s < shots; s++) { const e = nearestEnemyToBase(); if (!e) break; shoot(e.x, e.y, DMG.archer, "arrow"); damageEnemy(e, dmgFor(), { type: "archer", src: "archer" }); }
       break;
     }
     case "ranger": {
       // Like the archer but hunts fast/flying foes; also a quick green shot.
       let e = nearestEnemyTo(BASE.x, BASE.y, en => en.fast || en.flying) || nearestEnemyToBase();
-      if (e) { shoot(e.x, e.y, DMG.archer, "arrow"); damageEnemy(e, dmgFor() * ((e.fast || e.flying) ? 1.5 : 1), { type: "archer" }); }
+      if (e) { shoot(e.x, e.y, DMG.archer, "arrow"); damageEnemy(e, dmgFor() * ((e.fast || e.flying) ? 1.5 : 1), { type: "archer", src: "ranger" }); }
       break;
     }
     case "assassin": {
       const e = strongestEnemy();
       if (e) { const strong = e.boss || e.type === "tank"; const mul = unitStat(id,"critMul") + tb("crit").add;
-        shoot(e.x, e.y, "#ff8a80", "arrow"); damageEnemy(e, dmgFor() * (strong ? mul : 1), { type: "physical", crit: strong }); }
+        shoot(e.x, e.y, "#ff8a80", "arrow"); damageEnemy(e, dmgFor() * (strong ? mul : 1), { type: "physical", crit: strong, src: "assassin" }); }
       break;
     }
     case "mage": {
       // Slow purple ORB (visually distinct from archer arrows) + splash burst.
       const e = nearestEnemyToBase();
-      if (e) { let r = unitStat(id,"splash") + tb("splash").add; if (hasBuff("mage_splash")) r *= 1.6;
-        shoot(e.x, e.y, DMG.mage, "orb"); boom(e.x, e.y, r, DMG.mage, "burst"); splashDamage(e.x, e.y, r, dmgFor(), { type: "mage" }); }
+      if (e) { let r = (unitStat(id,"splash") + tb("splash").add) * buffProd("mageSplashMul");
+        shoot(e.x, e.y, DMG.mage, "orb"); boom(e.x, e.y, r, DMG.mage, "burst"); splashDamage(e.x, e.y, r, dmgFor(), { type: "mage", src: "mage" }); }
       break;
     }
     case "cannon": {
-      // Big orange area explosion.
+      // Big orange area explosion. (Heavy Ordnance scales via dmgMul.cannon.)
       const e = nearestEnemyToBase();
-      if (e) { const r = unitStat(id,"splash") + tb("splash").add; const d = dmgFor() * (hasBuff("cannon_area") ? 1.5 : 1);
-        boom(e.x, e.y, r, DMG.cannon, "burst"); boom(e.x, e.y, r, DMG.cannon, "ring"); splashDamage(e.x, e.y, r, d, { type: "cannon" }); }
+      if (e) { const r = unitStat(id,"splash") + tb("splash").add;
+        boom(e.x, e.y, r, DMG.cannon, "burst"); boom(e.x, e.y, r, DMG.cannon, "ring"); splashDamage(e.x, e.y, r, dmgFor(), { type: "cannon", src: "cannon" }); }
       break;
     }
     case "icewizard": {
       // Pale-blue frost burst; clearly slows everything it hits.
       const e = nearestEnemyToBase();
       if (e) { const r = unitStat(id,"splash"); let slow = unitStat(id,"slow") + (unitTalentBonus(id,"slow").mul - 1);
-        if (hasBuff("ice_strong") || hasBuff("frozen_heart")) slow += 0.3;
-        if (buffFlag("strongSlow")) slow += 0.15;   // Frostbite / Frozen Heart
-        slow = Math.min(0.9, slow);
+        slow = Math.min(0.9, slow + buffSum("slowAdd"));   // Deep Freeze / Frostbite / Frozen Heart
         shoot(e.x, e.y, DMG.ice, "orb"); boom(e.x, e.y, r, DMG.ice, "ring");
-        for (const t of run.enemies.slice()) if (Math.hypot(t.x-e.x, t.y-e.y) <= r + t.r) { damageEnemy(t, dmgFor(), { type: "ice" }); applySlow(t, slow, unitStat(id,"slowDur")); }
+        for (const t of run.enemies.slice()) if (Math.hypot(t.x-e.x, t.y-e.y) <= r + t.r) { damageEnemy(t, dmgFor(), { type: "ice", src: "icewizard" }); applySlow(t, slow, unitStat(id,"slowDur")); }
       }
       break;
     }
     case "firewizard": {
-      // Direct hit + lingering burn (the burn ticks show as fire numbers in update()).
+      // Direct hit + lingering burn (burn ticks attributed to the fire wizard).
       const e = nearestEnemyToBase();
-      if (e) { const burn = unitStat(id,"burn") * tb("burn").mul * allDmgMul; shoot(e.x, e.y, DMG.fire, "orb"); damageEnemy(e, dmgFor(), { type: "fire" }); applyBurn(e, burn); }
+      if (e) { const burn = unitStat(id,"burn") * tb("burn").mul * allDmgMul; shoot(e.x, e.y, DMG.fire, "orb"); damageEnemy(e, dmgFor(), { type: "fire", src: "firewizard" }); applyBurn(e, burn); }
       break;
     }
     case "knight": {
       // Defends the zone in front of the wall: damages + slows enemies there.
       const guard = unitStat(id,"guard") + tb("guard").add;
       const slow = unitStat(id,"slow") * (1 + talentEffect("t_knight_block"));
-      for (const t of run.enemies) if (Math.hypot(t.x-BASE.x, t.y-BASE.y) <= guard) { damageEnemy(t, dmgFor(), { type: "physical" }); applySlow(t, slow, 0.6); }
+      for (const t of run.enemies) if (Math.hypot(t.x-BASE.x, t.y-BASE.y) <= guard) { damageEnemy(t, dmgFor(), { type: "physical", src: "knight" }); applySlow(t, slow, 0.6); }
       break;
     }
     case "priest": {
-      let heal = unitStat(id,"heal") * (1 + talentEffect("t_priest_heal")); if (hasBuff("priest_fast")) heal *= 1.2; healBase(heal);
+      let heal = unitStat(id,"heal") * (1 + talentEffect("t_priest_heal")) * buffProd("priestHealMul"); healBase(heal);
       break;
     }
     case "engineer": {
@@ -1058,11 +1092,10 @@ function healBase(amt) {
 function healBaseSilent(amt) { if (run.baseHP < run.baseMaxHP) run.baseHP = Math.min(run.baseMaxHP, run.baseHP + amt); }
 function attackSpeedMul(id) {
   let m = 1 + talentEffect("all_speed");
-  if (hasBuff("atkspd")) m += 0.25;
-  m += buffSum("atkSpeedAdd");   // Swift Hands / Berserker / Reckless
+  m += buffSum("atkSpeedAdd");   // Frenzy / Swift Hands / Berserker / Reckless / Arcane Battery
   m += chAdd("atkSpeedAdd");     // No-Click Run challenge
   if (id === "archer") m += talentEffect("t_archer_spd");
-  if (id === "priest" && hasBuff("priest_fast")) m += 0.5;
+  if (id === "priest") m += buffSum("priestSpeedAdd");   // Blessing
   return m;
 }
 
@@ -1106,7 +1139,7 @@ function update(dt) {
     if (e.burnT > 0) {
       e.burnT -= dt;
       const tick = e.burnDps * dt;
-      damageEnemySilent(e, tick); e.burnTick += tick; e.flash = Math.max(e.flash, 0.03);
+      damageEnemySilent(e, tick, e.burnSrc || "firewizard"); e.burnTick += tick; e.flash = Math.max(e.flash, 0.03);
       e.burnEmit -= dt;
       if (e.burnEmit <= 0) { e.burnEmit = 0.45; if (e.burnTick >= 1) { spawnText(e.x, e.y - e.r - 4, Math.round(e.burnTick), DMG.fire, {}); e.burnTick = 0; } }
       if (e.hp <= 0) { killEnemy(e); continue; }
@@ -1149,6 +1182,9 @@ function update(dt) {
   run.effects = run.effects.filter(fx => fx.t < fx.life);
 
   refreshCombatBar();
+  // Throttle the damage-meter DOM rebuild to ~3×/sec.
+  run.meterTimer -= dt;
+  if (run.meterTimer <= 0) { run.meterTimer = 0.3; renderDamageMeter(); }
 }
 
 /* ---- Render ---- */
@@ -1288,10 +1324,10 @@ canvas.addEventListener("click", (ev) => {
   let target = null, bestD = Infinity;
   for (const e of run.enemies) { const d = Math.hypot(e.x-mx, e.y-my); if (d <= e.r + 16 && d < bestD) { bestD = d; target = e; } }
   if (target) {
-    damageEnemy(target, dmg, { type: "physical", crit });
+    damageEnemy(target, dmg, { type: "physical", crit, src: "click" });
     // Click Splash talent: a small physical splash around the struck enemy.
     const sr = talentEffect("click_splash");
-    if (sr > 0) splashDamage(target.x, target.y, sr, dmg * 0.5, { type: "physical" });
+    if (sr > 0) splashDamage(target.x, target.y, sr, dmg * 0.5, { type: "physical", src: "click" });
   }
 
   // Click Shockwave (AOE) talent: always blasts the clicked position with a
@@ -1301,7 +1337,7 @@ canvas.addEventListener("click", (ev) => {
   if (aoeR > 0) {
     aoeBurst(mx, my, aoeR);
     const aoeRank = talentRank("click_aoe");
-    splashDamage(mx, my, aoeR, dmg * (0.5 + 0.1 * aoeRank), { type: "cannon" });
+    splashDamage(mx, my, aoeR, dmg * (0.5 + 0.1 * aoeRank), { type: "cannon", src: "click" });
   }
 });
 
@@ -1339,9 +1375,14 @@ function onBossKilled() {
 document.getElementById("bossConfirm").onclick = () => {
   if (!pendingBossChoice) return;
   run.buffs.push(pendingBossChoice);
-  if (pendingBossChoice === "basehp") { run.baseMaxHP = computeBaseMaxHP(); run.baseHP = run.baseMaxHP; }
-  const up = BOSS_UPGRADES.find(b => b.id === pendingBossChoice);
-  log("Run buff gained: " + up.name + "!");
+  // Any buff that changes base max HP (Fortify, Juggernaut, Glass Cannon, …)
+  // recomputes the cap now; gained HP is granted, and current HP is re-clamped.
+  const oldMax = run.baseMaxHP;
+  run.baseMaxHP = computeBaseMaxHP();
+  if (run.baseMaxHP > oldMax) run.baseHP += (run.baseMaxHP - oldMax);
+  run.baseHP = Math.min(run.baseHP, run.baseMaxHP);
+  const up = BU[pendingBossChoice];
+  log("Run buff gained: " + (up ? up.name : pendingBossChoice) + "!");
   pendingBossChoice = null;
   setState("COMBAT");        // resume; next wave continues
 };
@@ -1362,6 +1403,30 @@ function refreshCombatBar() {
   const cw = document.getElementById("cChallengeWrap"), ct = document.getElementById("cChallenge");
   if (run && run.challenge) { cw.style.display = ""; ct.textContent = run.challenge.icon + " " + run.challenge.name; }
   else cw.style.display = "none";
+}
+
+/* ---- Damage meter ---- */
+// Each source's bar uses its signature damage colour.
+function meterColor(src) {
+  const m = { archer:DMG.archer, ranger:DMG.archer, mage:DMG.mage, cannon:DMG.cannon,
+              icewizard:DMG.ice, firewizard:DMG.fire, knight:DMG.physical, assassin:DMG.crit, click:"#ffffff" };
+  return m[src] || DMG.physical;
+}
+function renderDamageMeter() {
+  const rows = document.getElementById("dmRows"); if (!rows) return;
+  if (!run) { rows.innerHTML = '<div class="dm-empty">—</div>'; return; }
+  const entries = Object.entries(run.dmg).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) { rows.innerHTML = '<div class="dm-empty">No damage yet</div>'; return; }
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+  const max = entries[0][1];
+  rows.innerHTML = entries.map(([src, v]) => {
+    const label = src === "click" ? "👆 Clicks" : (UNITS[src] ? UNITS[src].emoji + " " + UNITS[src].name : src);
+    const pct = Math.round(v / max * 100);          // bar relative to the leader
+    const share = Math.round(v / total * 100);      // % of total damage
+    return '<div class="dm-row"><div class="dm-head"><span class="dm-name">' + label + '</span>' +
+           '<span class="dm-val">' + fmt(v) + ' · ' + share + '%</span></div>' +
+           '<div class="dm-bar"><span style="width:' + pct + '%;background:' + meterColor(src) + '"></span></div></div>';
+  }).join("");
 }
 
 const inUpgradeScreen = () => GS === "UPGRADES";
@@ -1497,8 +1562,11 @@ function renderChallenges() {
    Only permanent fields are saved — never temporary run data.
    ============================================================ */
 function setSaveMsg(msg, isErr) {
-  const el = document.getElementById("saveMsg"); if (!el) return;
-  el.textContent = msg; el.className = "meta " + (isErr ? "err" : "ok");
+  const el = document.getElementById("saveMsg");
+  if (el) { el.textContent = msg; el.className = "meta " + (isErr ? "err" : "ok"); }
+  // Mirror onto the main-menu message too.
+  const m = document.getElementById("menuSaveMsg");
+  if (m) { m.textContent = msg; m.style.color = isErr ? "var(--bad)" : "var(--good)"; }
 }
 function markLastSaved(label) {
   const el = document.getElementById("lastSaved"); if (!el) return;
@@ -1585,6 +1653,9 @@ document.getElementById("chStart").onclick = startRun;
 document.getElementById("exportSaveBtn").onclick = exportSave;
 document.getElementById("importSaveBtn").onclick = () => document.getElementById("importFile").click();
 document.getElementById("importFile").onchange = (ev) => { importSaveFile(ev.target.files[0]); ev.target.value = ""; };
+// Same save/load actions, exposed on the main menu for discoverability.
+document.getElementById("mExport").onclick = exportSave;
+document.getElementById("mImport").onclick = () => document.getElementById("importFile").click();
 document.getElementById("mQuit").onclick = () => {
   // No real "exit" in a browser tab; return to a calm menu and confirm save.
   save(); alert("Progress saved. You can close the tab to quit, or keep playing!");

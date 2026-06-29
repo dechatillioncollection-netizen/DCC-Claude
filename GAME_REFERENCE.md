@@ -290,21 +290,28 @@ per-type `typeMul(type)`.
 | `clickMul` | scale click damage | product |
 | `enemySpeedMul` | scale speed of enemies spawned after the pick | product |
 | `hpDrain` | base loses this many HP/sec while in combat | sum |
+| `mageSplashMul` | scale Mage splash radius | product |
+| `extraShots` | extra Archer projectiles | sum |
+| `burnDurMul` | scale Fire Wizard burn duration | product |
+| `slowAdd` | add to Ice Wizard slow fraction (capped 0.9) | sum |
+| `priestHealMul` | scale Priest heal amount | product |
+| `priestSpeedAdd` | flat add to Priest attack speed | sum |
 | `noRegen` | disables all base regen (flag) | flag |
-| `strongSlow` | boosts Ice Wizard slow by +0.15 (flag) | flag |
-| `longBurn` | extends Fire Wizard burn duration ×1.5 (flag) | flag |
 | `cursed:true` | UI flag → red styling + ☠ badge | — |
 
-The built-in list (`BUILTIN_RUN_BUFFS`) currently has **43 buffs (10 cursed)**.
-Boss rewards still offer **3 random** choices (4 under the Elite March challenge).
+**Every** buff's magnitude now comes from these fields (no values are
+hardcoded by id anymore), so editing `run-buffs.js` genuinely changes a
+buff's effect, not just its text. The built-in list (`BUILTIN_RUN_BUFFS`)
+has **43 buffs (10 cursed)**. Boss rewards offer **3 random** choices
+(4 under Elite March). Picking a buff that changes base max HP recomputes
+the cap immediately and grants the gained HP.
 
-A few legacy buffs still key off `hasBuff(id)` directly because their
-effect is too specific to tabulate: `archer_multi` (extra archer shot),
-`mage_splash` (×1.6 mage radius), `cannon_area` (×1.5 cannon dmg),
-`priest_fast` (×1.2 heal + faster), `fire_long` (×2 burn duration),
-`ice_strong` / `frozen_heart` (+0.3 slow), `click2x` (×2 click),
-`atkspd` (+0.25 attack speed), `basehp` (×1.5 base HP), `coins` (×1.25),
-`regen` (legacy; also carries `regenAdd:3`), `alldmg` (carries `allDmgMul:1.3`).
+Formerly-hardcoded buffs are now data-driven too: `click2x`→`clickMul:2`,
+`atkspd`→`atkSpeedAdd:0.25`, `basehp`→`baseHpMul:1.5`, `coins`→`coinMul:1.25`,
+`mage_splash`→`mageSplashMul:1.6`, `archer_multi`→`extraShots:1`,
+`cannon_area`→`dmgMul:{cannon:1.5}`, `priest_fast`→`priestSpeedAdd:0.5`,
+`fire_long`→`burnDurMul:2`, `ice_strong`→`slowAdd:0.3`. The `id` is just an
+identifier — change any number and the effect changes.
 
 ### Standard buffs (12)
 Power Clicks, Frenzy, Fortify, Greed, Arcane Blast, Multishot, Heavy
@@ -410,11 +417,12 @@ with a glow; heals show `+n`.
 
 ```
 unit attack → dmgFor = unitStat(dmg) · specificTalentMul · allDmgMul
-            → damageEnemy(e, dmgFor, {type})
+            → damageEnemy(e, dmgFor, {type, src})
                  amount *= typeMul(type)        // cursed/typed buffs
+                 trackDamage(src, dealt)        // → damage meter
                  e.hp -= amount
                  spawnText(... dmgColor(type) / crit colour ...)
-                 if dead → killEnemy → coins (·coinMul, ·1.25 Greed)
+                 if dead → killEnemy → coins (·coinMul incl. Greed/Fortune…)
                                      → lifesteal heal
                                      → if boss: onBossKilled → BOSS_REWARD
 ```
@@ -423,6 +431,22 @@ Click damage and splash/AOE flow through the same `damageEnemy`, so typed
 buffs and colours apply uniformly. Burn is the one exception: it bakes
 `typeMul("fire")` into `burnDps` at apply time and ticks via
 `damageEnemySilent` (emitting one throttled fire number).
+
+---
+
+## 12b. Damage meter
+
+Every damage call carries a `src` (a unit id, or `"click"`). `damageEnemy`/
+`damageEnemySilent` call `trackDamage(src, dealt)` which accumulates into
+`run.dmg = { src: total }` (counting only damage actually dealt, not
+overkill). Burn ticks credit `e.burnSrc` (the fire wizard). The overlay
+(`#dmgMeter`, top-right of the battlefield) is rebuilt ~3×/sec by
+`renderDamageMeter()`: sources sorted descending, each with a coloured bar
+(relative to the leader) plus its value and % of total. `run.dmg` resets
+each run via `freshRun()`. Priest/Engineer do no damage so never appear.
+
+(See §10c for the Save Manager — its Export/Import buttons also appear on
+the **main menu** now, wired to the same functions.)
 
 ---
 
