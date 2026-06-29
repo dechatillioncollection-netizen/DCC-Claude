@@ -37,7 +37,8 @@ only advances while `GS === "COMBAT"`.
 | `COMBAT`       | Battlefield + combat stat bar| **yes** |
 | `UPGRADES`     | Units, shop, inventory, talents | no |
 | `INFO`         | How-to-play                  | no |
-| `BOSS_REWARD`  | 3-choice buff overlay (over frozen combat) | no (paused) |
+| `CHALLENGES`   | Pick one optional run modifier | no |
+| `BOSS_REWARD`  | 3/4-choice buff overlay (over frozen combat) | no (paused) |
 | `DEAD`         | Death summary                | no |
 
 Navigation: `MENU → COMBAT` (Play), `MENU ↔ UPGRADES`, `MENU ↔ INFO`,
@@ -287,8 +288,15 @@ per-type `typeMul(type)`.
 | `lifesteal` | heal `fraction · maxHP` per kill | sum |
 | `regenAdd` | flat HP/sec base regen | sum |
 | `clickMul` | scale click damage | product |
+| `enemySpeedMul` | scale speed of enemies spawned after the pick | product |
+| `hpDrain` | base loses this many HP/sec while in combat | sum |
 | `noRegen` | disables all base regen (flag) | flag |
+| `strongSlow` | boosts Ice Wizard slow by +0.15 (flag) | flag |
+| `longBurn` | extends Fire Wizard burn duration ×1.5 (flag) | flag |
 | `cursed:true` | UI flag → red styling + ☠ badge | — |
+
+The built-in list (`BUILTIN_RUN_BUFFS`) currently has **43 buffs (10 cursed)**.
+Boss rewards still offer **3 random** choices (4 under the Elite March challenge).
 
 A few legacy buffs still key off `hasBuff(id)` directly because their
 effect is too specific to tabulate: `archer_multi` (extra archer shot),
@@ -299,32 +307,73 @@ effect is too specific to tabulate: `archer_multi` (extra archer shot),
 `regen` (legacy; also carries `regenAdd:3`), `alldmg` (carries `allDmgMul:1.3`).
 
 ### Standard buffs (12)
-Power Clicks (×2 click), Frenzy (+25% atk speed), Fortify (+50% base HP),
-Greed (+25% coins), Arcane Blast (+60% mage splash), Multishot (extra
-archer shot), Heavy Ordnance (+50% cannon dmg), Blessing (priests heal
-50% faster), Wildfire (burn ×2 duration), Deep Freeze (stronger slow),
-Overcharge (+30% all dmg), Field Medic (+3 HP/s regen).
+Power Clicks, Frenzy, Fortify, Greed, Arcane Blast, Multishot, Heavy
+Ordnance, Blessing, Wildfire, Deep Freeze, Overcharge, Field Medic.
 
-### Extra variety buffs (11)
-Sharpshooter (+100% archer/ranger), Arcane Surge (+120% mage), Demolition
-(+120% cannon), Inferno (+100% fire), Permafrost (+100% ice), Bulwark
-(−30% damage taken), Swift Hands (+40% atk speed), Fortune (+50% coins),
-Vampiric Walls (heal 2% max HP/kill), Juggernaut (+80% base HP), Warlord
-(+50% all dmg).
+### Specialist / defensive / economy / utility buffs (21)
+Eagle Eye (+75% archer), Arcane Battery (+60% mage & +15% atk speed),
+Siege Crew (+90% cannon), Frostbite (+80% ice + stronger slow), Burning
+Oil (+80% fire + longer burn), Sharpshooter, Arcane Surge, Demolition,
+Inferno, Permafrost, Reinforced Gate (+100% base HP), Medic Aura (+5
+HP/s), Veteran Formation (+35% dmg & −15% taken), Bulwark, Juggernaut,
+Piercing Focus (+100% click), Warlord, Swift Hands, Vampiric Walls,
+Coin Storm (+75% coins), Fortune.
 
-### Cursed buffs (7) — big boon + real downside
+### Cursed buffs (10) — big boon + real downside
 | Buff | Boon | Curse |
 |------|------|-------|
 | Pyromancer's Pact 😈 | ×3 fire damage | ½ physical damage |
 | Glass Cannon 💎 | +150% all damage | base max HP halved |
-| Blood Ritual 🧛 | ×3 coins | +40% base damage taken |
+| Blood Money 💸 | ×3 coins | +40% base damage taken |
 | Frozen Heart ❄️ | ×3 ice + stronger slow | fire cut to 25% |
-| Berserker Rage 🪓 | +120% physical, +50% atk speed | regen off, +20% damage taken |
+| Berserker Rage 🪓 | +120% physical, +50% atk speed | no regen, +20% damage taken |
 | Reckless Assault 💀 | +80% atk speed | −30% damage |
-| Overclock 🔋 | +200% click damage | −40% unit damage |
+| Overclocked Hands 🖐️ | +200% click damage | −40% unit damage |
+| Cursed Treasury ☠ | +200% coins | enemies +20% speed |
+| Ashen Armour 🌑 | −50% damage taken | fire & mage damage halved |
+| Doom Pact 😈 | +300% all damage | base loses 2 HP/sec in combat |
 
 Cursed choices stack with everything multiplicatively, e.g. running both
 Pyromancer (fire ×3) and Frozen Heart (fire ×0.25) yields fire ×0.75.
+
+---
+
+## 10b. Run Challenges (optional per-run modifier)
+
+Chosen from the **Challenges** screen before a run; only **one** is active,
+stored on `run.challenge`, shown on the combat bar, and **reset on death**.
+Data lives in `CHALLENGES`; helpers `chMul/chAdd/chFlag/chVal` read it.
+
+| Challenge | Harder | Reward |
+|-----------|--------|--------|
+| Swarm Mode 🐝 | spawn interval ×0.55 | +50% coins |
+| Elite March 🎖️ | enemy HP ×1.5 | boss offers 4 choices |
+| Fragile Base 🥚 | base HP ×0.5 | +50% all damage |
+| No-Click Run 🚫 | clicks deal 0 damage | units +40% attack speed |
+| Greedy Run 🤑 | base takes +50% damage | ×2 coins |
+
+Challenge fields mirror the buff modifiers, plus `enemyHpMul`,
+`spawnRateMul` (<1 = faster), `noClick` (flag), and `bossChoices` (count).
+
+---
+
+## 10c. Save Manager (export / import)
+
+The localStorage autosave is unchanged. The **Upgrades → Save Manager**
+panel adds manual backup:
+
+- **Export Save** (`exportSave`): serialises `buildSavePayload()` — only
+  permanent fields (`coins, talentPoints, ownedUnits, equipped, talents,
+  tpBought`, plus `game`/`version` tags) — to a Blob and downloads
+  `click-defenders-save-YYYY-MM-DD.txt`. Never includes run/enemies/buffs/wave.
+- **Import Save** (`importSaveFile` → `validateSave`): reads a picked file
+  with `FileReader`, then **validates**: must be JSON object; `ownedUnits`
+  an object; `equipped` an array; `coins/talentPoints/tpBought` numbers.
+  It then **sanitises** into a clean object — unknown fields ignored,
+  unknown unit/talent ids dropped, values clamped (coins ≥0, talents to
+  their `max`, equipped to valid owned ids, max 5). On success it replaces
+  `persist`, saves, refreshes UI, and shows a success message; on failure
+  the current save is left untouched and an error is shown.
 
 ---
 
@@ -386,9 +435,15 @@ buffs and colours apply uniformly. Burn is the one exception: it bakes
 - **New talent:** add to `TALENTS` with `branch/name/desc/max/cost/per`
   (+ `unit`/`stat` for a specific-unit talent). The talent UI auto-renders
   by branch.
-- **New run buff:** add to `BOSS_UPGRADES` using the recognised modifier
-  fields in §10 — no other code needed for tabulated effects. Set
-  `cursed:true` to flag a downside visually.
+- **New run buff:** add to `BUILTIN_RUN_BUFFS` using the recognised
+  modifier fields in §10 — no other code needed for tabulated effects.
+  Set `cursed:true` to flag a downside visually.
+- **Mod buffs without touching the HTML:** edit `run-buffs.js` (next to
+  `game.html`), which sets `window.CD_RUN_BUFFS`. If present and valid the
+  game uses it instead of the built-ins (`sanitizeBuffList` drops bad
+  entries). Delete the file and the game falls back to its built-in list,
+  so `game.html` still works as a single offline file.
+- **New challenge:** add to `CHALLENGES`; the screen auto-renders it.
 - **New damage type / colour:** add to the `DMG` map; pass `{type}` from
   the attack into `damageEnemy`.
 - **Rebalance:** all knobs are the literals in `UNITS`, `ENEMY_TYPES`,

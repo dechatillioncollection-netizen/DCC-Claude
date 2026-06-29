@@ -211,7 +211,7 @@ button.danger { border-color: var(--bad); color: var(--bad); }
   box-shadow:0 0 40px rgba(255,202,40,.25);
 }
 .modal-box h2 { margin-top:0; color:var(--accent-2); font-size:26px; }
-#bossChoices { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:16px 0; }
+#bossChoices { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin:16px 0; }
 @media (max-width:680px){ #bossChoices{ grid-template-columns:1fr; } }
 .choice {
   background:var(--panel-2); border:2px solid var(--border); border-radius:10px;
@@ -225,6 +225,18 @@ button.danger { border-color: var(--bad); color: var(--bad); }
 .choice.cursed .cname { color:#ff90ad; }
 .curse-badge { position:absolute; top:6px; right:6px; font-size:9px; font-weight:bold; letter-spacing:.5px;
   color:#ff90ad; background:rgba(163,65,90,.25); border:1px solid #a3415a; border-radius:999px; padding:2px 6px; }
+
+/* Challenge cards (selectable, one active) */
+.challenge-card { display:flex; align-items:center; gap:12px; background:var(--panel-2); border:2px solid var(--border);
+  border-radius:10px; padding:12px; margin-bottom:8px; cursor:pointer; transition:border-color .12s, transform .05s; }
+.challenge-card:hover { border-color:var(--accent); transform:translateY(-1px); }
+.challenge-card.selected { border-color:var(--good); background:#1f2b22; }
+.challenge-card .cicon { font-size:30px; }
+.challenge-card .ctitle { font-weight:bold; }
+.challenge-card .cdesc { font-size:12px; color:var(--muted); }
+.challenge-tag { background:rgba(255,202,40,.15); color:var(--accent-2); }
+#saveMsg.ok { color:var(--good); }
+#saveMsg.err { color:var(--bad); }
 .choice .cicon { font-size:34px; }
 .choice .cname { font-weight:bold; margin:8px 0 4px; }
 .choice .cdesc { font-size:12px; color:var(--muted); }
@@ -261,6 +273,7 @@ button.danger { border-color: var(--bad); color: var(--bad); }
       </div>
       <div class="menu-buttons">
         <button class="menu-btn play" id="mPlay">▶ PLAY</button>
+        <button class="menu-btn" id="mChallenges">RUN CHALLENGES</button>
         <button class="menu-btn" id="mUpgrades">UPGRADES</button>
         <button class="menu-btn" id="mInfo">INFO</button>
         <button class="menu-btn" id="mQuit">QUIT</button>
@@ -280,6 +293,8 @@ button.danger { border-color: var(--bad); color: var(--bad); }
       <div class="stat"><span class="label">Click Dmg</span><span class="value" id="cClick">1</span></div>
       <div class="stat" style="min-width:150px"><span class="label">Run Buffs</span>
         <span class="value" style="font-size:12px"><div id="combatBuffs"><span class="tag">none</span></div></span></div>
+      <div class="stat" id="cChallengeWrap" style="min-width:120px; display:none"><span class="label">Challenge</span>
+        <span class="value" style="font-size:12px"><span class="tag challenge-tag" id="cChallenge"></span></span></div>
       <div class="spacer"></div>
       <button id="speedBtn" title="Toggle game speed (fights play out identically, just faster)">⏩ 1×</button>
       <div class="phase-pill phase-combat">COMBAT PHASE</div>
@@ -326,6 +341,19 @@ button.danger { border-color: var(--bad); color: var(--bad); }
           <div class="btns"><button class="primary" id="buyTPBtn">Buy Talent Point</button></div>
         </div>
         <div class="scroll" id="talents"></div>
+
+        <!-- Save Manager: manual export/import of the permanent save -->
+        <h3 style="margin-top:16px;">💾 Save Manager</h3>
+        <div class="card" id="saveManager">
+          <div class="meta">Back up or transfer your progress as a text file. (Your game also auto-saves to this browser.)</div>
+          <div class="btns" style="margin-top:8px;">
+            <button class="primary" id="exportSaveBtn">⬇ Export Save</button>
+            <button id="importSaveBtn">⬆ Import Save</button>
+            <input type="file" id="importFile" accept=".txt,.json,application/json,text/plain" style="display:none" />
+          </div>
+          <div class="meta" id="lastSaved" style="margin-top:8px; color:var(--muted);">Last saved: —</div>
+          <div class="meta" id="saveMsg" style="margin-top:4px; min-height:16px;"></div>
+        </div>
       </div>
     </div>
     <div id="log"></div>
@@ -370,10 +398,35 @@ button.danger { border-color: var(--bad); color: var(--bad); }
         <h3>Permanent Upgrades &amp; Talents</h3>
         <p>Spend coins to buy talent points, then unlock permanent upgrades across four branches: Click, Units (general), Specific units, and Defence. These are kept forever.</p>
 
+        <h3>Run Challenges</h3>
+        <p>From the menu, open <b>Run Challenges</b> to pick one optional modifier before a run. Challenges make the run harder but more rewarding (e.g. Swarm Mode: faster spawns, +50% coins). Only one is active per run, it shows on the combat bar, and it resets on death.</p>
+
         <h3>Death</h3>
-        <p>If your base HP reaches 0 the run ends and the wave resets to 0. You <b>keep</b> coins, owned units, unit levels, equipped loadout, permanent upgrades and talents. Only temporary boss buffs reset.</p>
+        <p>If your base HP reaches 0 the run ends and the wave resets to 0. You <b>keep</b> coins, owned units, unit levels, equipped loadout, permanent upgrades and talents. Only temporary boss buffs and the active challenge reset.</p>
+
+        <h3>Saving &amp; Backups</h3>
+        <p>Progress auto-saves to your browser. In the <b>Upgrades → Save Manager</b> panel you can <b>Export</b> your save as a text file and <b>Import</b> it later or on another device. Imports are validated, so a bad file won't overwrite your progress.</p>
+        <p><b>Modding:</b> advanced users can edit <code>run-buffs.js</code> next to the game to change the boss reward pool.</p>
 
         <div class="btns" style="margin-top:18px;"><button class="danger" id="wipeBtn">Erase Save</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       CHALLENGES (state: CHALLENGES) — pick one optional run modifier
+       ============================================================ -->
+  <section class="screen" id="screen-challenges">
+    <div class="topbar">
+      <button id="chBack">← Main Menu</button>
+      <h2>⚔ Run Challenges</h2>
+      <div class="spacer"></div>
+      <span class="help" style="align-self:center">Harder run, better rewards. One per run — resets on death.</span>
+    </div>
+    <div class="col">
+      <div id="challengeList"></div>
+      <div class="btns" style="margin-top:14px; justify-content:center;">
+        <button class="primary big" id="chStart">▶ Start Run</button>
       </div>
     </div>
   </section>
@@ -403,6 +456,13 @@ button.danger { border-color: var(--bad); color: var(--bad); }
     <button class="primary" id="bossConfirm" disabled>Continue to Next Wave →</button>
   </div>
 </section>
+
+<!-- OPTIONAL MOD HOOK: if a run-buffs.js file sits next to game.html and
+     sets window.CD_RUN_BUFFS, the game validates and uses it instead of
+     its built-in buff list. The file is optional — if it's missing this
+     harmlessly does nothing and game.html still works as a single file.
+     Local <script src> works offline (file://); fetch/XHR would not. -->
+<script src="run-buffs.js"></script>
 
 <script>
 /* ============================================================
@@ -463,7 +523,7 @@ function dmgColor(type) { return DMG[type] || DMG.physical; }
    GS is the single source of truth for which screen shows and
    whether the simulation runs. Only COMBAT advances the world.
    ============================================================ */
-const STATES = ["MENU", "COMBAT", "UPGRADES", "INFO", "BOSS_REWARD", "DEAD"];
+const STATES = ["MENU", "COMBAT", "UPGRADES", "INFO", "CHALLENGES", "BOSS_REWARD", "DEAD"];
 let GS = "MENU";
 
 function show(id, on) {
@@ -477,11 +537,13 @@ function setState(s) {
   show("screen-combat", s === "COMBAT" || s === "BOSS_REWARD"); // battlefield stays visible (frozen) behind boss reward
   show("screen-upgrades", s === "UPGRADES");
   show("screen-info", s === "INFO");
+  show("screen-challenges", s === "CHALLENGES");
   show("screen-dead", s === "DEAD");
   // Boss reward is an overlay on top of the frozen combat screen:
   document.getElementById("screen-boss").classList.toggle("hidden", s !== "BOSS_REWARD");
 
   if (s === "UPGRADES") refreshUI();
+  if (s === "CHALLENGES") renderChallenges();
   if (s === "COMBAT" || s === "DEAD") refreshCombatBar();
 }
 
@@ -497,7 +559,7 @@ let persist = {
   talents: {},      // { talentId: ranks }
   tpBought: 0,
 };
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(persist)); } catch (e) {} }
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(persist)); markLastSaved(); } catch (e) {} }
 function load() {
   try { const raw = localStorage.getItem(SAVE_KEY); if (raw) persist = Object.assign(persist, JSON.parse(raw)); }
   catch (e) {}
@@ -587,12 +649,13 @@ function buildWave(wave) {
 }
 function spawnEnemy(type, wave) {
   const t = ENEMY_TYPES[type];
-  const hp = enemyBaseHP(wave) * t.hpMul * (t.boss ? 1 : rand(0.9, 1.1));
+  // Elite March (challenge) raises enemy HP; Cursed Treasury raises speed.
+  const hp = enemyBaseHP(wave) * t.hpMul * (t.boss ? 1 : rand(0.9, 1.1)) * chMul("enemyHpMul");
   const margin = 60;
   return {
     type, t, x: rand(margin, CANVAS_W - margin), y: -20,
     hp, maxHP: hp,
-    spd: t.spd * waveSpeedMul(wave),
+    spd: t.spd * waveSpeedMul(wave) * buffProd("enemySpeedMul") * chMul("enemySpeedMul"),
     reward: Math.ceil(t.reward * waveRewardMul(wave)),
     dmg: t.dmg + wave * 0.6, r: t.r,
     flying: !!t.flying, fast: !!t.fast, boss: !!t.boss,
@@ -650,8 +713,8 @@ function unitTalentBonus(unitId, stat) {
 function nextTPCost() { return Math.ceil(100 * Math.pow(1.18, persist.tpBought)); }
 
 /* ============================================================
-   6. BOSS UPGRADES (temporary, reset on death)
-   Data-driven modifiers so new buffs are trivial to add:
+   6. BOSS UPGRADES (temporary run buffs, reset on death)
+   Data-driven modifiers so new buffs are trivial to add / mod:
      dmgMul:{type:mult}  scales a damage TYPE (physical/archer/mage/
                          fire/ice/cannon) — applied in damageEnemy().
      allDmgMul           multiplies ALL unit damage.
@@ -661,12 +724,26 @@ function nextTPCost() { return Math.ceil(100 * Math.pow(1.18, persist.tpBought))
      coinMul             multiplies coin rewards.
      lifesteal           heal base by this fraction of max HP per kill.
      regenAdd            flat HP/sec base regen.
-   `cursed:true` flags a high-risk choice (styled red) that pairs a big
-   bonus with a real downside.
-   A few legacy buffs (archer_multi, mage_splash, etc.) are still handled
-   by name via hasBuff() where their effect is too specific to tabulate.
+     clickMul            multiplies click damage.
+     enemySpeedMul       multiplies the speed of enemies spawned after pick.
+     hpDrain             base loses this many HP/sec while in combat.
+     noRegen   (flag)    disables all base regen.
+     strongSlow(flag)    boosts Ice Wizard slow (+0.15).
+     longBurn  (flag)    extends Fire Wizard burn duration (×1.5).
+   `cursed:true` flags a high-risk choice (styled red) pairing a big
+   bonus with a real downside. All multipliers stack multiplicatively.
+
+   MODDING: this list can be overridden WITHOUT editing the HTML. If a
+   `run-buffs.js` file sits next to game.html and defines
+   `window.CD_RUN_BUFFS = [ ...buffs... ]`, the game validates and uses it
+   instead of the built-in list below. Delete/rename that file and the
+   game falls back to these defaults — so game.html still works as a
+   single, offline file on its own.
+
+   A few legacy buffs (archer_multi, mage_splash, etc.) are also read by
+   name via hasBuff() for effects too specific to tabulate.
    ============================================================ */
-const BOSS_UPGRADES = [
+const BUILTIN_RUN_BUFFS = [
   // ---- Standard buffs ----
   { id:"click2x",     icon:"👆", name:"Power Clicks", desc:"Double click damage this run." },
   { id:"atkspd",      icon:"⚡", name:"Frenzy",       desc:"Units attack 25% faster this run." },
@@ -680,27 +757,69 @@ const BOSS_UPGRADES = [
   { id:"ice_strong",  icon:"❄️", name:"Deep Freeze",  desc:"Ice slow is much stronger this run." },
   { id:"alldmg",      icon:"💥", name:"Overcharge",   desc:"+30% all unit damage this run.", allDmgMul:1.3 },
   { id:"regen",       icon:"💗", name:"Field Medic",  desc:"+3 HP/sec base regen this run.", regenAdd:3 },
-  // ---- Extra variety buffs ----
-  { id:"sharpshooter",icon:"🎯", name:"Sharpshooter", desc:"+100% Archer & Ranger damage this run.", dmgMul:{archer:2} },
-  { id:"arcane_surge",icon:"🌀", name:"Arcane Surge",  desc:"+120% Mage damage this run.",            dmgMul:{mage:2.2} },
-  { id:"demolition",  icon:"🧨", name:"Demolition",    desc:"+120% Cannon damage this run.",          dmgMul:{cannon:2.2} },
-  { id:"inferno",     icon:"🔥", name:"Inferno",       desc:"+100% Fire damage this run.",            dmgMul:{fire:2} },
-  { id:"permafrost",  icon:"🧊", name:"Permafrost",    desc:"+100% Ice damage this run.",             dmgMul:{ice:2} },
-  { id:"bulwark",     icon:"🛡️", name:"Bulwark",       desc:"Base takes 30% less damage this run.",   dmgTakenMul:0.7 },
-  { id:"swift_hands", icon:"🤹", name:"Swift Hands",   desc:"Units attack 40% faster this run.",      atkSpeedAdd:0.4 },
-  { id:"fortune",     icon:"🍀", name:"Fortune",       desc:"Earn 50% more coins this run.",          coinMul:1.5 },
-  { id:"vampiric",    icon:"🩸", name:"Vampiric Walls",desc:"Heal 2% of base max HP per kill this run.", lifesteal:0.02 },
-  { id:"juggernaut",  icon:"🏰", name:"Juggernaut",    desc:"+80% base max HP this run (and heal).",  baseHpMul:1.8 },
-  { id:"warlord",     icon:"⚔️", name:"Warlord",       desc:"+50% all unit damage this run.",         allDmgMul:1.5 },
+  // ---- Specialist (per-type) buffs ----
+  { id:"eagle_eye",      icon:"🦅", name:"Eagle Eye",      desc:"+75% Archer & Ranger damage this run.", dmgMul:{archer:1.75} },
+  { id:"arcane_battery", icon:"🔋", name:"Arcane Battery", desc:"+60% Mage damage & +15% attack speed this run.", dmgMul:{mage:1.6}, atkSpeedAdd:0.15 },
+  { id:"siege_crew",     icon:"🏗️", name:"Siege Crew",     desc:"+90% Cannon damage this run.", dmgMul:{cannon:1.9} },
+  { id:"frostbite",      icon:"🥶", name:"Frostbite",      desc:"+80% Ice damage & slightly stronger slow this run.", dmgMul:{ice:1.8}, strongSlow:true },
+  { id:"burning_oil",    icon:"🛢️", name:"Burning Oil",    desc:"+80% Fire damage & longer burn this run.", dmgMul:{fire:1.8}, longBurn:true },
+  { id:"sharpshooter",   icon:"🎯", name:"Sharpshooter",   desc:"+100% Archer & Ranger damage this run.", dmgMul:{archer:2} },
+  { id:"arcane_surge",   icon:"🌀", name:"Arcane Surge",   desc:"+120% Mage damage this run.", dmgMul:{mage:2.2} },
+  { id:"demolition",     icon:"🧨", name:"Demolition",     desc:"+120% Cannon damage this run.", dmgMul:{cannon:2.2} },
+  { id:"inferno",        icon:"🔥", name:"Inferno",        desc:"+100% Fire damage this run.", dmgMul:{fire:2} },
+  { id:"permafrost",     icon:"🧊", name:"Permafrost",     desc:"+100% Ice damage this run.", dmgMul:{ice:2} },
+  // ---- Defensive buffs ----
+  { id:"reinforced_gate",icon:"🚪", name:"Reinforced Gate",desc:"+100% base max HP this run (and heal).", baseHpMul:2 },
+  { id:"medic_aura",     icon:"⛑️", name:"Medic Aura",     desc:"+5 HP/sec base regen this run.", regenAdd:5 },
+  { id:"veteran_formation",icon:"🎖️",name:"Veteran Formation",desc:"+35% all unit damage & 15% less damage taken this run.", allDmgMul:1.35, dmgTakenMul:0.85 },
+  { id:"bulwark",        icon:"🛡️", name:"Bulwark",        desc:"Base takes 30% less damage this run.", dmgTakenMul:0.7 },
+  { id:"juggernaut",     icon:"🏰", name:"Juggernaut",     desc:"+80% base max HP this run (and heal).", baseHpMul:1.8 },
+  // ---- Offensive / utility buffs ----
+  { id:"piercing_focus", icon:"🎯", name:"Piercing Focus", desc:"+100% click damage this run.", clickMul:2 },
+  { id:"warlord",        icon:"⚔️", name:"Warlord",        desc:"+50% all unit damage this run.", allDmgMul:1.5 },
+  { id:"swift_hands",    icon:"🤹", name:"Swift Hands",    desc:"Units attack 40% faster this run.", atkSpeedAdd:0.4 },
+  { id:"vampiric",       icon:"🩸", name:"Vampiric Walls", desc:"Heal 2% of base max HP per kill this run.", lifesteal:0.02 },
+  // ---- Economy buffs ----
+  { id:"coin_storm",     icon:"🪙", name:"Coin Storm",     desc:"+75% coin rewards this run.", coinMul:1.75 },
+  { id:"fortune",        icon:"🍀", name:"Fortune",        desc:"+50% coin rewards this run.", coinMul:1.5 },
   // ---- CURSED buffs: a big boon paired with a real penalty ----
-  { id:"pyromancer",  icon:"😈", name:"Pyromancer's Pact", cursed:true, desc:"3× Fire damage, but HALF physical damage this run.", dmgMul:{fire:3, physical:0.5} },
-  { id:"glass_cannon",icon:"💎", name:"Glass Cannon",      cursed:true, desc:"+150% all unit damage, but base max HP halved this run.", allDmgMul:2.5, baseHpMul:0.5 },
-  { id:"blood_ritual",icon:"🧛", name:"Blood Ritual",      cursed:true, desc:"Triple coins, but base takes +40% damage this run.", coinMul:3, dmgTakenMul:1.4 },
-  { id:"frozen_heart",icon:"❄️", name:"Frozen Heart",      cursed:true, desc:"3× Ice damage & stronger slow, but Fire damage cut to 25% this run.", dmgMul:{ice:3, fire:0.25} },
-  { id:"berserker",   icon:"🪓", name:"Berserker Rage",    cursed:true, desc:"+120% physical damage & +50% attack speed, but base regen disabled & base takes +20% damage.", dmgMul:{physical:2.2}, atkSpeedAdd:0.5, dmgTakenMul:1.2, noRegen:true },
-  { id:"reckless",    icon:"💀", name:"Reckless Assault",  cursed:true, desc:"Units attack 80% faster, but deal 30% less damage this run.", atkSpeedAdd:0.8, allDmgMul:0.7 },
-  { id:"overclock",   icon:"🔋", name:"Overclock",         cursed:true, desc:"+200% click damage, but units deal 40% less damage this run.", clickMul:3, allDmgMul:0.6 },
+  { id:"pyromancer",     icon:"😈", name:"Pyromancer's Pact", cursed:true, desc:"3× Fire damage, but HALF physical damage this run.", dmgMul:{fire:3, physical:0.5} },
+  { id:"glass_cannon",   icon:"💎", name:"Glass Cannon",      cursed:true, desc:"+150% all unit damage, but base max HP halved this run.", allDmgMul:2.5, baseHpMul:0.5 },
+  { id:"blood_ritual",   icon:"💸", name:"Blood Money",        cursed:true, desc:"3× coins, but base takes +40% damage this run.", coinMul:3, dmgTakenMul:1.4 },
+  { id:"frozen_heart",   icon:"❄️", name:"Frozen Heart",      cursed:true, desc:"3× Ice damage & stronger slow, but Fire damage cut to 25% this run.", dmgMul:{ice:3, fire:0.25}, strongSlow:true },
+  { id:"berserker",      icon:"🪓", name:"Berserker Rage",    cursed:true, desc:"+120% physical damage & +50% attack speed, but no regen & base takes +20% damage.", dmgMul:{physical:2.2}, atkSpeedAdd:0.5, dmgTakenMul:1.2, noRegen:true },
+  { id:"reckless",       icon:"💀", name:"Reckless Assault",  cursed:true, desc:"Units attack 80% faster, but deal 30% less damage this run.", atkSpeedAdd:0.8, allDmgMul:0.7 },
+  { id:"overclock",      icon:"🖐️", name:"Overclocked Hands", cursed:true, desc:"+200% click damage, but unit damage reduced 40% this run.", clickMul:3, allDmgMul:0.6 },
+  { id:"cursed_treasury",icon:"☠", name:"Cursed Treasury",   cursed:true, desc:"+200% coins, but enemies move 20% faster this run.", coinMul:3, enemySpeedMul:1.2 },
+  { id:"ashen_armour",   icon:"🌑", name:"Ashen Armour",      cursed:true, desc:"50% less damage taken, but Fire & Mage damage halved this run.", dmgTakenMul:0.5, dmgMul:{fire:0.5, mage:0.5} },
+  { id:"doom_pact",      icon:"😈", name:"Doom Pact",         cursed:true, desc:"+300% all damage, but base loses 2 HP/sec in combat this run.", allDmgMul:4, hpDrain:2 },
 ];
+
+// Sanitise an external/mod buff list so bad data can never crash the game.
+// Returns a cleaned array, or null if nothing usable was found.
+function sanitizeBuffList(list) {
+  if (!Array.isArray(list)) return null;
+  const numFields = ["allDmgMul","baseHpMul","dmgTakenMul","atkSpeedAdd","coinMul","lifesteal","regenAdd","clickMul","enemySpeedMul","hpDrain"];
+  const flagFields = ["noRegen","strongSlow","longBurn"];
+  const dmgTypes = ["physical","archer","mage","fire","ice","cannon"];
+  const out = [], seen = new Set();
+  for (const b of list) {
+    if (!b || typeof b !== "object") continue;
+    if (typeof b.id !== "string" || typeof b.name !== "string" || seen.has(b.id)) continue;
+    const clean = { id:b.id, name:b.name, icon: typeof b.icon === "string" ? b.icon : "⭐", desc: typeof b.desc === "string" ? b.desc : "", cursed: !!b.cursed };
+    for (const f of numFields) if (typeof b[f] === "number" && isFinite(b[f])) clean[f] = b[f];
+    for (const f of flagFields) if (b[f]) clean[f] = true;
+    if (b.dmgMul && typeof b.dmgMul === "object" && !Array.isArray(b.dmgMul)) {
+      const dm = {};
+      for (const t of dmgTypes) if (typeof b.dmgMul[t] === "number" && isFinite(b.dmgMul[t])) dm[t] = b.dmgMul[t];
+      if (Object.keys(dm).length) clean.dmgMul = dm;
+    }
+    out.push(clean); seen.add(b.id);
+  }
+  return out.length ? out : null;
+}
+// Use an external mod list (window.CD_RUN_BUFFS from run-buffs.js) if valid, else the built-ins.
+const BOSS_UPGRADES = sanitizeBuffList(typeof window !== "undefined" ? window.CD_RUN_BUFFS : null) || BUILTIN_RUN_BUFFS;
 // id -> buff lookup, for the data-driven modifier helpers below.
 const BU = Object.fromEntries(BOSS_UPGRADES.map(b => [b.id, b]));
 function hasBuff(id) { return run && run.buffs.includes(id); }
@@ -710,6 +829,28 @@ function buffProd(field) { let p = 1; if (!run) return 1; for (const id of run.b
 function buffFlag(field) { if (!run) return false; for (const id of run.buffs) { const b = BU[id]; if (b && b[field]) return true; } return false; }
 // Per damage-type multiplier from active buffs/curses (e.g. Pyromancer 3× fire, ½ physical).
 function typeMul(type) { let m = 1; if (!run || !type) return 1; for (const id of run.buffs) { const b = BU[id]; if (b && b.dmgMul && b.dmgMul[type] != null) m *= b.dmgMul[type]; } return m; }
+
+/* ============================================================
+   6b. RUN CHALLENGES (optional per-run modifier, harder + better)
+   Chosen before a run from the Challenges screen. Only ONE active at a
+   time. Stored on `run.challenge` and reset on death / fresh run.
+   Fields mirror the buff modifiers plus: enemyHpMul, spawnRateMul
+   (<1 = faster), noClick (flag), bossChoices (count for boss rewards).
+   ============================================================ */
+const CHALLENGES = {
+  swarm:   { id:"swarm",   icon:"🐝",  name:"Swarm Mode",   desc:"Enemies spawn much faster, but +50% coin rewards.", spawnRateMul:0.55, coinMul:1.5 },
+  elite:   { id:"elite",   icon:"🎖️", name:"Elite March",  desc:"Enemies have +50% HP, but bosses offer 4 buff choices.", enemyHpMul:1.5, bossChoices:4 },
+  fragile: { id:"fragile", icon:"🥚",  name:"Fragile Base", desc:"Base HP is halved, but all damage is +50%.", baseHpMul:0.5, allDmgMul:1.5 },
+  noclick: { id:"noclick", icon:"🚫",  name:"No-Click Run", desc:"Clicking deals no damage, but units attack 40% faster.", noClick:true, atkSpeedAdd:0.4 },
+  greedy:  { id:"greedy",  icon:"🤑",  name:"Greedy Run",   desc:"Coin rewards doubled, but base takes +50% damage.", coinMul:2, dmgTakenMul:1.5 },
+};
+const CHALLENGE_IDS = Object.keys(CHALLENGES);
+let selectedChallenge = null;   // id chosen on the Challenges screen (null = none)
+// Read a challenge modifier from the active run's challenge.
+function chMul(field)  { return (run && run.challenge && run.challenge[field] != null) ? run.challenge[field] : 1; }
+function chAdd(field)  { return (run && run.challenge && run.challenge[field] != null) ? run.challenge[field] : 0; }
+function chFlag(field) { return !!(run && run.challenge && run.challenge[field]); }
+function chVal(field, dflt) { return (run && run.challenge && run.challenge[field] != null) ? run.challenge[field] : dflt; }
 
 /* ============================================================
    7. GAME LOOP
@@ -727,7 +868,8 @@ function computeBaseMaxHP() {
   let hp = 100 + talentEffect("base_hp");
   if (hasBuff("basehp")) hp *= 1.5;
   hp *= buffProd("baseHpMul");      // e.g. Juggernaut +80%, Glass Cannon ½
-  return Math.floor(hp);
+  hp *= chMul("baseHpMul");         // Fragile Base challenge halves it
+  return Math.max(1, Math.floor(hp));
 }
 function clickDamage() {
   let d = 1 + talentEffect("click_dmg");
@@ -740,12 +882,15 @@ function clickDamage() {
 function startRun() {
   run = freshRun();
   run.active = true;
+  // Apply the optional challenge chosen on the Challenges screen (one per run).
+  run.challengeId = selectedChallenge;
+  run.challenge = selectedChallenge ? CHALLENGES[selectedChallenge] : null;
   run.baseMaxHP = computeBaseMaxHP();
   run.baseHP = run.baseMaxHP;
   unitTimers = {};
   startWave(1);
   setState("COMBAT");
-  log("Run started. Good luck!");
+  log(run.challenge ? ("Run started — Challenge: " + run.challenge.name + "!") : "Run started. Good luck!");
 }
 function startWave(n) {
   run.wave = n;
@@ -758,10 +903,12 @@ function startWave(n) {
 function endRun() {
   run.active = false;
   run.buffs = [];                 // temporary buffs reset on death
+  run.challenge = null;           // challenge ends with the run
+  selectedChallenge = null;       // must be re-chosen for the next run
   document.getElementById("deadText").textContent = "You fell on wave " + run.wave + ".";
   save();
   setState("DEAD");
-  log("Base destroyed on wave " + run.wave + ". Wave resets to 0; run buffs cleared.");
+  log("Base destroyed on wave " + run.wave + ". Wave resets to 0; run buffs & challenge cleared.");
 }
 
 /* ---- Damage / kills ----
@@ -785,7 +932,7 @@ function killEnemy(e) {
   run.enemies.splice(idx, 1);
   let reward = e.reward;
   if (hasBuff("coins")) reward *= 1.25;
-  reward = Math.ceil(reward * buffProd("coinMul"));   // Fortune / Blood Ritual
+  reward = Math.ceil(reward * buffProd("coinMul") * chMul("coinMul"));   // buffs (Fortune/Coin Storm/Blood Money…) + challenges
   persist.coins += reward;
   spawnText(e.x, e.y, "+" + reward, "#ffd54f");
   // Vampiric Walls: heal a fraction of base max HP on each kill.
@@ -801,7 +948,7 @@ function splashDamage(x, y, radius, dmg, opts) {
   }
 }
 function applyBurn(e, baseDps, durMul) {
-  let dur = 3 * (durMul || 1); if (hasBuff("fire_long")) dur *= 2;
+  let dur = 3 * (durMul || 1); if (hasBuff("fire_long")) dur *= 2; if (buffFlag("longBurn")) dur *= 1.5; // Burning Oil
   e.burnT = Math.max(e.burnT, dur); e.burnDps = Math.max(e.burnDps, baseDps * typeMul("fire"));
 }
 function applySlow(e, amount, dur) {
@@ -833,7 +980,7 @@ function engineerBuffMul() {
   return 1 + unitStat("engineer", "buff") * (1 + talentEffect("t_eng_buff"));
 }
 function unitAttack(id) {
-  const allDmgMul = (1 + talentEffect("all_dmg")) * buffProd("allDmgMul") * engineerBuffMul();
+  const allDmgMul = (1 + talentEffect("all_dmg")) * buffProd("allDmgMul") * chMul("allDmgMul") * engineerBuffMul();
   const tb = unitTalentBonus.bind(null, id);
   function dmgFor() { return unitStat(id, "dmg") * tb("dmg").mul * allDmgMul; }
 
@@ -874,7 +1021,9 @@ function unitAttack(id) {
       // Pale-blue frost burst; clearly slows everything it hits.
       const e = nearestEnemyToBase();
       if (e) { const r = unitStat(id,"splash"); let slow = unitStat(id,"slow") + (unitTalentBonus(id,"slow").mul - 1);
-        if (hasBuff("ice_strong") || hasBuff("frozen_heart")) slow = Math.min(0.9, slow + 0.3);
+        if (hasBuff("ice_strong") || hasBuff("frozen_heart")) slow += 0.3;
+        if (buffFlag("strongSlow")) slow += 0.15;   // Frostbite / Frozen Heart
+        slow = Math.min(0.9, slow);
         shoot(e.x, e.y, DMG.ice, "orb"); boom(e.x, e.y, r, DMG.ice, "ring");
         for (const t of run.enemies.slice()) if (Math.hypot(t.x-e.x, t.y-e.y) <= r + t.r) { damageEnemy(t, dmgFor(), { type: "ice" }); applySlow(t, slow, unitStat(id,"slowDur")); }
       }
@@ -911,6 +1060,7 @@ function attackSpeedMul(id) {
   let m = 1 + talentEffect("all_speed");
   if (hasBuff("atkspd")) m += 0.25;
   m += buffSum("atkSpeedAdd");   // Swift Hands / Berserker / Reckless
+  m += chAdd("atkSpeedAdd");     // No-Click Run challenge
   if (id === "archer") m += talentEffect("t_archer_spd");
   if (id === "priest" && hasBuff("priest_fast")) m += 0.5;
   return m;
@@ -947,7 +1097,7 @@ function update(dt) {
   // Spawn
   if (run.spawnQueue.length > 0) {
     run.spawnTimer -= dt;
-    if (run.spawnTimer <= 0) { const type = run.spawnQueue.shift(); run.enemies.push(spawnEnemy(type, run.wave)); run.spawnTimer = type === "boss" ? 0.2 : rand(0.45, 0.85); }
+    if (run.spawnTimer <= 0) { const type = run.spawnQueue.shift(); run.enemies.push(spawnEnemy(type, run.wave)); run.spawnTimer = (type === "boss" ? 0.2 : rand(0.45, 0.85)) * chMul("spawnRateMul"); } // Swarm Mode spawns faster
   }
   // Move + resolve
   for (const e of run.enemies.slice()) {
@@ -965,7 +1115,7 @@ function update(dt) {
     if (e.flash > 0) e.flash -= dt;
     e.y += spd * dt;
     if (e.y >= BASE_LINE) {
-      let dmg = e.dmg * (1 - talentEffect("base_armor")) * buffProd("dmgTakenMul"); // Bulwark / Blood Ritual / Berserker
+      let dmg = e.dmg * (1 - talentEffect("base_armor")) * buffProd("dmgTakenMul") * chMul("dmgTakenMul"); // armour, buffs (Bulwark/Blood Money/…), challenges
       run.baseHP -= dmg;
       spawnText(BASE.x + rand(-50,50), BASE.y - 20, "-" + Math.round(dmg), DMG.enemy, {});
       const idx = run.enemies.indexOf(e); if (idx > -1) run.enemies.splice(idx, 1);
@@ -982,6 +1132,9 @@ function update(dt) {
   // Regen (Berserker's curse disables all base regen this run)
   const regen = buffFlag("noRegen") ? 0 : talentEffect("base_regen") + buffSum("regenAdd");
   if (regen > 0) healBaseSilent(regen * dt);
+  // Doom Pact curse: base bleeds HP every second while in combat.
+  const drain = buffSum("hpDrain");
+  if (drain > 0) { run.baseHP -= drain * dt; if (run.baseHP <= 0) { run.baseHP = 0; endRun(); return; } }
 
   // Wave clear
   if (run.waveActive && run.spawnQueue.length === 0 && run.enemies.length === 0) { run.waveActive = false; run.interWaveTimer = 1.2; }
@@ -1124,6 +1277,9 @@ canvas.addEventListener("click", (ev) => {
   // A shot always fires toward the clicked point (even into empty space).
   shoot(mx, my, "#ffffff", "arrow");
 
+  // No-Click Run challenge: the shot is purely cosmetic — no damage at all.
+  if (chFlag("noClick")) return;
+
   let dmg = clickDamage();
   let crit = false;
   if (Math.random() < talentEffect("click_crit")) { dmg *= 3; crit = true; }
@@ -1155,10 +1311,11 @@ canvas.addEventListener("click", (ev) => {
 let pendingBossChoice = null;
 function onBossKilled() {
   pendingBossChoice = null;
+  const numChoices = chVal("bossChoices", 3);   // Elite March offers 4
   const pool = BOSS_UPGRADES.filter(b => !run.buffs.includes(b.id));
-  const src = pool.length >= 3 ? pool : BOSS_UPGRADES.slice();
+  const src = pool.length >= numChoices ? pool : BOSS_UPGRADES.slice();
   const copy = src.slice(); const opts = [];
-  for (let i = 0; i < 3 && copy.length; i++) opts.push(copy.splice(Math.floor(Math.random()*copy.length), 1)[0]);
+  for (let i = 0; i < numChoices && copy.length; i++) opts.push(copy.splice(Math.floor(Math.random()*copy.length), 1)[0]);
 
   const box = document.getElementById("bossChoices");
   box.innerHTML = "";
@@ -1197,10 +1354,14 @@ function refreshCombatBar() {
   w.textContent = run ? run.wave : 0;
   document.getElementById("cHP").textContent = run && run.active ? Math.ceil(run.baseHP) + "/" + run.baseMaxHP : computeBaseMaxHP();
   document.getElementById("cCoins").textContent = fmt(persist.coins);
-  document.getElementById("cClick").textContent = fmt(clickDamage());
+  document.getElementById("cClick").textContent = chFlag("noClick") ? "0 (off)" : fmt(clickDamage());
   const bl = document.getElementById("combatBuffs");
-  if (run && run.buffs.length) bl.innerHTML = run.buffs.map(id => { const u = BOSS_UPGRADES.find(b => b.id === id); return '<span class="tag">'+u.icon+" "+u.name+'</span>'; }).join("");
+  if (run && run.buffs.length) bl.innerHTML = run.buffs.map(id => { const u = BU[id]; return u ? '<span class="tag">'+u.icon+" "+u.name+'</span>' : ""; }).join("");
   else bl.innerHTML = '<span class="tag">none</span>';
+  // Active challenge indicator (hidden when none).
+  const cw = document.getElementById("cChallengeWrap"), ct = document.getElementById("cChallenge");
+  if (run && run.challenge) { cw.style.display = ""; ct.textContent = run.challenge.icon + " " + run.challenge.name; }
+  else cw.style.display = "none";
 }
 
 const inUpgradeScreen = () => GS === "UPGRADES";
@@ -1313,10 +1474,117 @@ function buyTalentPoint() {
   persist.coins -= cost; persist.tpBought++; persist.talentPoints++; log("Bought a talent point."); refreshUI();
 }
 
+/* ---- Challenges screen ---- */
+function renderChallenges() {
+  const wrap = document.getElementById("challengeList");
+  wrap.innerHTML = "";
+  // "None" option first.
+  const opts = [{ id:null, icon:"⚔", name:"No Challenge", desc:"A standard run with no modifiers." }]
+    .concat(CHALLENGE_IDS.map(id => CHALLENGES[id]));
+  for (const c of opts) {
+    const div = document.createElement("div");
+    div.className = "challenge-card" + (selectedChallenge === c.id ? " selected" : "");
+    div.innerHTML = '<div class="cicon">'+c.icon+'</div><div><div class="ctitle">'+c.name+'</div><div class="cdesc">'+c.desc+'</div></div>';
+    div.onclick = () => { selectedChallenge = c.id; renderChallenges(); };
+    wrap.appendChild(div);
+  }
+}
+
+/* ============================================================
+   SAVE MANAGER — manual export/import of permanent progress.
+   Browsers can't write into the game folder, so export produces a
+   downloadable .txt; import reads a user-picked file with FileReader.
+   Only permanent fields are saved — never temporary run data.
+   ============================================================ */
+function setSaveMsg(msg, isErr) {
+  const el = document.getElementById("saveMsg"); if (!el) return;
+  el.textContent = msg; el.className = "meta " + (isErr ? "err" : "ok");
+}
+function markLastSaved(label) {
+  const el = document.getElementById("lastSaved"); if (!el) return;
+  el.textContent = "Last saved: " + (label || new Date().toLocaleString());
+}
+// The permanent payload — explicitly NOT including run/enemies/buffs/wave.
+function buildSavePayload() {
+  return {
+    game: "click-defenders", version: 2,
+    coins: persist.coins,
+    talentPoints: persist.talentPoints,
+    ownedUnits: persist.ownedUnits,
+    equipped: persist.equipped,
+    talents: persist.talents,
+    tpBought: persist.tpBought,
+  };
+}
+function exportSave() {
+  try {
+    const text = JSON.stringify(buildSavePayload(), null, 2);
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const ymd = new Date().toISOString().slice(0, 10);
+    const a = document.createElement("a");
+    a.href = url; a.download = "click-defenders-save-" + ymd + ".txt";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setSaveMsg("Exported as click-defenders-save-" + ymd + ".txt", false);
+  } catch (e) { setSaveMsg("Export failed: " + e.message, true); }
+}
+// Validate + sanitise an imported save. Returns {ok, data} or {ok:false, error}.
+function validateSave(text) {
+  let obj;
+  try { obj = JSON.parse(text); } catch (e) { return { ok:false, error:"file is not valid JSON" }; }
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return { ok:false, error:"save is not an object" };
+  if (typeof obj.ownedUnits !== "object" || obj.ownedUnits === null || Array.isArray(obj.ownedUnits)) return { ok:false, error:"ownedUnits must be an object" };
+  if (!Array.isArray(obj.equipped)) return { ok:false, error:"equipped must be an array" };
+  for (const k of ["coins", "talentPoints", "tpBought"]) if (typeof obj[k] !== "number" || !isFinite(obj[k])) return { ok:false, error:k + " must be a number" };
+  // Build a clean object (unknown fields are ignored; impossible values clamped).
+  const clean = { coins:0, talentPoints:0, ownedUnits:{}, equipped:[], talents:{}, tpBought:0 };
+  clean.coins = Math.max(0, Math.floor(obj.coins));
+  clean.talentPoints = Math.max(0, Math.floor(obj.talentPoints));
+  clean.tpBought = Math.max(0, Math.floor(obj.tpBought));
+  for (const id in obj.ownedUnits) {
+    if (!UNITS[id]) continue;                                  // ignore unknown units
+    const lv = obj.ownedUnits[id];
+    if (typeof lv === "number" && isFinite(lv)) clean.ownedUnits[id] = clamp(Math.floor(lv), 0, 9999);
+  }
+  if (obj.talents && typeof obj.talents === "object" && !Array.isArray(obj.talents)) {
+    for (const id in obj.talents) {
+      if (!TALENTS[id]) continue;                              // ignore unknown talents
+      const r = obj.talents[id];
+      if (typeof r === "number" && isFinite(r)) clean.talents[id] = clamp(Math.floor(r), 0, TALENTS[id].max);
+    }
+  }
+  const seen = new Set();
+  for (const id of obj.equipped) {                             // valid, owned, unique, max 5
+    if (UNITS[id] && (clean.ownedUnits[id] || 0) > 0 && !seen.has(id) && clean.equipped.length < 5) { clean.equipped.push(id); seen.add(id); }
+  }
+  return { ok:true, data:clean };
+}
+function importSaveFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const res = validateSave(e.target.result);
+    if (!res.ok) { setSaveMsg("Import failed: " + res.error + " (your current save is unchanged).", true); return; }
+    persist = res.data;          // replace permanent progress
+    save();                      // persist to localStorage immediately
+    if (GS === "UPGRADES") refreshUI(); else refreshCombatBar();
+    setSaveMsg("Save imported successfully!", false);
+  };
+  reader.onerror = () => setSaveMsg("Could not read that file.", true);
+  reader.readAsText(file);
+}
+
 /* ---- Menu / navigation wiring ---- */
 document.getElementById("mPlay").onclick = startRun;
+document.getElementById("mChallenges").onclick = () => setState("CHALLENGES");
 document.getElementById("mUpgrades").onclick = () => setState("UPGRADES");
 document.getElementById("mInfo").onclick = () => setState("INFO");
+document.getElementById("chBack").onclick = () => setState("MENU");
+document.getElementById("chStart").onclick = startRun;
+document.getElementById("exportSaveBtn").onclick = exportSave;
+document.getElementById("importSaveBtn").onclick = () => document.getElementById("importFile").click();
+document.getElementById("importFile").onchange = (ev) => { importSaveFile(ev.target.files[0]); ev.target.value = ""; };
 document.getElementById("mQuit").onclick = () => {
   // No real "exit" in a browser tab; return to a calm menu and confirm save.
   save(); alert("Progress saved. You can close the tab to quit, or keep playing!");
