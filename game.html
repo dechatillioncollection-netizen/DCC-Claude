@@ -1275,6 +1275,23 @@ const CASTLE_SRC   = 'sprites/castle.png';
 const FIELD_BG_IMG = new Image(); FIELD_BG_IMG.src = FIELD_BG_SRC;
 const CASTLE_IMG   = new Image(); CASTLE_IMG.src   = CASTLE_SRC;
 const imgReady = (im) => im && im.complete && im.naturalWidth > 0;
+
+// Castle damage-state sprites. The keep swaps sprite as base HP drops.
+// Each PNG lives in sprites/castle/ — edit those files to make the states
+// look progressively wrecked. Ordered high HP -> low HP; `min` is the HP
+// fraction at/above which the state applies. Falls back to castle.png, then
+// to procedural drawing, if a state image is missing.
+const CASTLE_STATES = [
+  { min: 0.66, src: 'sprites/castle/full.png' },       // healthy
+  { min: 0.33, src: 'sprites/castle/damaged.png' },    // damaged
+  { min: 0.0,  src: 'sprites/castle/destroyed.png' },  // critical / near-destroyed
+];
+CASTLE_STATES.forEach(s => { s.img = new Image(); s.img.src = s.src; });
+function castleImageFor(pct) {
+  let st = CASTLE_STATES.find(s => pct >= s.min) || CASTLE_STATES[CASTLE_STATES.length - 1];
+  if (imgReady(st.img)) return st.img;
+  return imgReady(CASTLE_IMG) ? CASTLE_IMG : null;
+}
 function spriteTag(src, cls, alt) {
   return '<img class="' + cls + ' sprite-icon" src="' + src + '" alt="' + alt + '">';
 }
@@ -1600,7 +1617,8 @@ function drawSprite(img, x, y, w, h) {
 }
 function enemySpriteSize(e) {
   const sizes = { basic: 112, fast: 104, tank: 170, flying: 138, boss: 240 };
-  return sizes[e.type] || Math.max(96, e.r * 6.0);
+  const base = sizes[e.type] || Math.max(96, e.r * 6.0);
+  return base * 0.6;   // enemies drawn 40% smaller
 }
 // Clickable radius: tracks the drawn sprite (not the small gameplay `e.r`),
 // so clicking a visible enemy reliably registers. ~0.38× the sprite size
@@ -2022,34 +2040,16 @@ function drawBase() {
   const keep = { w: 170, h: 118, x: BASE.x - 85, y: BASE.y - 150 };
   const damage = 1 - pct;
 
-  // ----- Fortress art: swappable sprites/castle.png -----
-  // If the castle image is present we draw it (with a health-reactive damage
-  // overlay); otherwise we fall back to the original procedural keep + wall.
-  if (imgReady(CASTLE_IMG)) {
-    const cW = 372, cH = 306, cCx = BASE.x, cBottom = BASE.y + 54, cTop = cBottom - cH;
-    // soft ground shadow
+  // ----- Fortress art: damage-state sprite (sprites/castle/*.png) -----
+  // The keep swaps between full/damaged/destroyed sprites as HP drops — no
+  // colour overlay. Falls back to the procedural keep + wall if no image.
+  const castleImg = castleImageFor(pct);
+  if (castleImg) {
+    const cW = 372, cH = 306, cBottom = BASE.y + 54, cTop = cBottom - cH;
     ctx.fillStyle = 'rgba(0,0,0,.30)';
     ctx.beginPath(); ctx.ellipse(BASE.x, BASE.y + 42, 196, 26, 0, 0, Math.PI * 2); ctx.fill();
     setCanvasQuality();
-    ctx.drawImage(CASTLE_IMG, Math.round(cCx - cW / 2), Math.round(cTop), cW, cH);
-    // Damage overlay: darken + embers + smoke as HP drops (keeps the
-    // wall-visibly-breaks feel without per-shape cracks).
-    if (damage > 0.04) {
-      ctx.save();
-      ctx.beginPath(); ctx.rect(cCx - cW / 2, cTop, cW, cH); ctx.clip();
-      ctx.fillStyle = 'rgba(18,6,4,' + (damage * 0.5) + ')';
-      ctx.fillRect(cCx - cW / 2, cTop, cW, cH);
-      if (damage > 0.5) {
-        ctx.fillStyle = 'rgba(255,110,40,' + ((damage - 0.5) * 0.55) + ')';
-        ctx.beginPath(); ctx.arc(BASE.x - 34, BASE.y - 48, 24, 0, Math.PI * 2);
-        ctx.arc(BASE.x + 44, BASE.y - 84, 18, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.restore();
-      if (damage > 0.5) {
-        ctx.fillStyle = 'rgba(44,48,56,' + (damage * 0.5) + ')';
-        for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(BASE.x - 64 + i * 64, cTop + 26 - i * 10, 15 + i * 5, 0, Math.PI * 2); ctx.fill(); }
-      }
-    }
+    ctx.drawImage(castleImg, Math.round(BASE.x - cW / 2), Math.round(cTop), cW, cH);
     drawFortLabel(pct, keep);
     drawDefenders(wall);
     return;

@@ -26,6 +26,19 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v5.4.0 — UPDATE — 2026-07-01 10:05 SAST
+  Added:
+    - Castle damage-state sprites in sprites/castle/ (full.png / damaged.png
+      / destroyed.png). The keep now swaps sprite by HP (>=66% full,
+      33-66% damaged, <33% destroyed) via CASTLE_STATES in game.html. All
+      three start as duplicates of the default castle — edit them to look
+      progressively wrecked. Falls back to castle.png then procedural.
+  Changed:
+    - Enemies drawn 40% smaller (enemySpriteSize).
+  Removed:
+    - The castle damage colour overlay (darken/embers/smoke) — replaced by
+      the swappable damage-state sprites above.
+
 v5.3.3 — HOTFIX — 2026-07-01 09:53 SAST
   Fixed:
     - Capped unit targeting range: units no longer attack enemies that
