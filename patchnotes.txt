@@ -1,19 +1,35 @@
 ================================================================
  CLICK DEFENDERS — PATCH NOTES
 ================================================================
-All times are South Africa Standard Time (SAST, UTC+2).
 
-Versioning scheme
-  MAJOR  (X.0.0) — a release that ADDS more than 3 separate things
-  UPDATE (x.Y.0) — a release that ADDS one to three things
-  HOTFIX (x.y.Z) — a fix / correction only, no new feature
-
-Newest entries are at the top.
+>>> INSTRUCTIONS FOR THE ASSISTANT (re-read this block if you ever
+>>> forget how to maintain this file):
+>>>
+>>>  1. EVERY time a change is made to the project, add an entry here.
+>>>  2. Put the NEWEST entry at the TOP, oldest at the BOTTOM.
+>>>  3. Classify the change and bump the version accordingly:
+>>>       HOTFIX (x.y.Z) — a fix / correction only, no new feature.
+>>>       UPDATE (x.Y.0) — ADDS one to three separate things.
+>>>       MAJOR  (X.0.0) — ADDS more than 3 separate things.
+>>>     (A bump resets the lower numbers: MAJOR resets Y and Z to 0,
+>>>      UPDATE resets Z to 0.)
+>>>  4. Timestamp each entry in South Africa Standard Time (SAST,
+>>>     UTC+2). Get it with:  TZ='Africa/Johannesburg' date
+>>>  5. Keep entries short: list what was Added / Fixed / Changed /
+>>>     Housekeeping under the version line.
+>>>
+>>> Entry format:
+>>>   vX.Y.Z — MAJOR|UPDATE|HOTFIX — YYYY-MM-DD HH:MM SAST
+>>>     Added:
+>>>       - ...
+>>>     Fixed:
+>>>       - ...
 ----------------------------------------------------------------
 
 v5.1.0 — UPDATE — 2026-07-01 08:50 SAST
   Added:
-    - patchnotes.txt (this file), with the versioning scheme above.
+    - patchnotes.txt (this file), with the versioning scheme and a
+      self-instruction header (newest-on-top, SAST timestamps).
   Housekeeping:
     - Removed index.html (an unrelated "Staff Punch Card" page, not part
       of this game and referenced nowhere).
