@@ -72,12 +72,38 @@ talents, talent points.
 
 | Thing | Value |
 |-------|-------|
-| Canvas | 740 × 540 px |
-| Base | 200 × 46 px box, centred at bottom (`BASE.x=370, BASE.y≈504`) |
-| `BASE_LINE` | `BASE.y - 23` ≈ **481** — the y where enemies start damaging the base |
-| Enemy spawn point | `y = -20`, `x` random in `[60, 680]` |
+| Logical field (`CANVAS_W`×`CANVAS_H`) | **1600 × 900** |
+| Base | 300 × 58 px box, centred at bottom (`BASE.y = CANVAS_H − 42`) |
+| `BASE_LINE` | `BASE.y − 29` ≈ **829** — the y where enemies start damaging the base |
 | Enemy movement | straight down at the enemy's speed |
 | Frame step | `dt` clamped to ≤ 0.05 s |
+
+The field was enlarged from the original 740×540 to 1600×900. To keep
+pacing, enemy speeds are multiplied by
+`COMPACT_FIELD_SPEED_SCALE = BASE_LINE / 481` (≈1.72) so they still cross
+the taller field in roughly the same time, and attack cooldowns use
+`DEFAULT_ATTACK_COOLDOWN_SCALE` (0.90).
+
+**Sprites.** Units and enemies draw PNGs from `sprites/units/<id>.png` and
+`sprites/enemies/<type>.png` (filenames match internal ids). `loadSpriteMap`
+preloads them; `drawSprite` renders one and returns `false` if the image
+hasn't loaded, in which case the old coloured-circle fallback is used —
+so the game still runs if a sprite is missing. `enemySpriteSize(e)` sets
+per-type draw sizes.
+
+**Hitbox vs gameplay radius.** `e.r` is the small *gameplay* radius (used
+for splash, collisions, reaching the base — keeps balance). The *clickable*
+target is separate: `enemyHitR(e) = max(e.r+14, enemySpriteSize(e)·0.38)`,
+so clicks track the visible sprite rather than the tiny logical radius.
+
+**Status icons.** Slowed/burning enemies show a **❄ / 🔥 icon just below**
+the sprite (rather than rings scaled to `e.r`).
+
+**Resolution / Settings.** The Settings screen picks a `resolutionScale`
+(0.5/1/2/3×), saved to `clickDefendersSettings_v2`. It supersamples by
+setting `canvas.width/height = CANVAS_W/H × scale` and applying a matching
+ctx transform, while **gameplay coordinates stay in 1600×900 space**. Click
+mapping uses `CANVAS_W / rect.width`, so input is accurate at any scale.
 
 **Game speed:** `gameSpeed` is 1 or 2. 2× runs the **same fixed update
 step twice per frame** (sub-stepping), so fight outcomes are identical to
