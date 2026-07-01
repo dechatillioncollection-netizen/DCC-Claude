@@ -26,6 +26,13 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v5.3.1 — HOTFIX — 2026-07-01 09:43 SAST
+  Changed:
+    - Reworked sprites/background.png into a top-down battlefield (no sky /
+      horizon), since enemies enter from the top. Grass field with worn
+      vertical approach lanes, dirt patches, scattered rocks, and a stone
+      courtyard in front of the keep. (No code change; same swappable file.)
+
 v5.3.0 — UPDATE — 2026-07-01 09:39 SAST
   Changed:
     - Replaced the procedural block-shape castle with a proper fortress
