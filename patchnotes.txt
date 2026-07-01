@@ -26,6 +26,12 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v5.5.0 — UPDATE — 2026-07-01 10:39 SAST
+  Added:
+    - README.md — how to start the game (just open game.html offline) and a
+      table explaining what every file/folder is for, plus quick play and
+      modding notes.
+
 v5.4.0 — UPDATE — 2026-07-01 10:05 SAST
   Added:
     - Castle damage-state sprites in sprites/castle/ (full.png / damaged.png
