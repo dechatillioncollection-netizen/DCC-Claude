@@ -1383,7 +1383,7 @@ const TALENTS = {
   t_mage_splash:  { branch:"Specific", name:"Mage Splash",     desc:"+15 mage splash radius per rank",    max:6, cost:1, per:15,   unit:"mage",      stat:"splash" },
   t_cannon_area:  { branch:"Specific", name:"Cannon Area",     desc:"+20 cannon splash radius per rank",  max:6, cost:1, per:20,   unit:"cannon",    stat:"splash" },
   t_priest_heal:  { branch:"Specific", name:"Priest Healing",  desc:"+20% priest healing per rank",       max:8, cost:1, per:0.20, unit:"priest",    stat:"heal" },
-  t_knight_block: { branch:"Specific", name:"Knight Guard",    desc:"+10% knight slow & guard per rank",  max:6, cost:1, per:0.10, unit:"knight",    stat:"guard" },
+  t_knight_block: { branch:"Specific", name:"Knight Guard",    desc:"+1 field knight per rank (max 5) & +10% slow", max:6, cost:1, per:0.10, unit:"knight",    stat:"guard" },
   t_assassin_crit:{ branch:"Specific", name:"Assassin Crit",   desc:"+0.6x assassin crit per rank",       max:8, cost:1, per:0.6,  unit:"assassin",  stat:"crit" },
   t_ice_slow:     { branch:"Specific", name:"Ice Slow",        desc:"+5% ice slow strength per rank",     max:6, cost:1, per:0.05, unit:"icewizard", stat:"slow" },
   t_fire_burn:    { branch:"Specific", name:"Fire Burn",       desc:"+25% fire burn damage per rank",     max:8, cost:1, per:0.25, unit:"firewizard",stat:"burn" },
@@ -1759,42 +1759,68 @@ function engineerBuffMul() {
   if (!persist.equipped.includes("engineer")) return 1;
   return 1 + unitStat("engineer", "buff") * (1 + talentEffect("t_eng_buff"));
 }
+// ---- Formation (where equipped units sit/fire) & knight field posts ----
+const DEFENDER_SPREAD = 380;                 // total width the equipped units span on the wall
+function defenderRowY() { return BASE.y - 38; }
+function defenderPos(i, n) {
+  const step = n > 1 ? DEFENDER_SPREAD / (n - 1) : 0;
+  return { x: BASE.x - DEFENDER_SPREAD / 2 + i * step, y: defenderRowY() + (i % 2 ? 0 : -4) };
+}
+// A unit's shots originate from its spot on the wall.
+function unitPost(id) {
+  const i = persist.equipped.indexOf(id);
+  if (i < 0) return { x: BASE.x, y: BASE.y - 20 };
+  return defenderPos(i, persist.equipped.length);
+}
+// The Knight is a FIELD unit: 2 posts by default, +1 per Knight Guard rank up
+// to 5, each projecting an AoE that damages & slows enemies inside it. Posts
+// are spread out (left/right of the road) so their AoEs don't overlap.
+const KNIGHT_POSTS = [
+  { x: 0.20, y: 0.46 }, { x: 0.80, y: 0.46 },
+  { x: 0.22, y: 0.80 }, { x: 0.78, y: 0.80 },
+  { x: 0.50, y: 0.30 },
+];
+function knightCount() { return Math.min(5, 2 + talentRank("t_knight_block")); }
+function knightRadius() { return unitStat("knight", "guard") + unitTalentBonus("knight", "guard").add; }
+function knightPositions() { return KNIGHT_POSTS.slice(0, knightCount()).map(p => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H })); }
+
 function unitAttack(id) {
   const allDmgMul = (1 + talentEffect("all_dmg")) * buffProd("allDmgMul") * chMul("allDmgMul") * engineerBuffMul();
   const tb = unitTalentBonus.bind(null, id);
   function dmgFor() { return unitStat(id, "dmg") * tb("dmg").mul * allDmgMul; }
+  const post = unitPost(id);   // attacks originate from the unit's position on the wall
 
   switch (id) {
     case "archer": {
       // Quick green single-target projectiles. Multishot adds extra shots.
       const shots = 1 + Math.floor(buffSum("extraShots"));
-      for (let s = 0; s < shots; s++) { const e = nearestEnemyToBase(); if (!e) break; shoot(e.x, e.y, DMG.archer, "arrow"); damageEnemy(e, dmgFor(), { type: "archer", src: "archer" }); }
+      for (let s = 0; s < shots; s++) { const e = nearestEnemyToBase(); if (!e) break; shoot(e.x, e.y, DMG.archer, "arrow", post.x, post.y); damageEnemy(e, dmgFor(), { type: "archer", src: "archer" }); }
       break;
     }
     case "ranger": {
       // Like the archer but hunts fast/flying foes; also a quick green shot.
       let e = nearestEnemyTo(BASE.x, BASE.y, en => en.fast || en.flying) || nearestEnemyToBase();
-      if (e) { shoot(e.x, e.y, DMG.archer, "arrow"); damageEnemy(e, dmgFor() * ((e.fast || e.flying) ? 1.5 : 1), { type: "archer", src: "ranger" }); }
+      if (e) { shoot(e.x, e.y, DMG.archer, "arrow", post.x, post.y); damageEnemy(e, dmgFor() * ((e.fast || e.flying) ? 1.5 : 1), { type: "archer", src: "ranger" }); }
       break;
     }
     case "assassin": {
       const e = strongestEnemy();
       if (e) { const strong = e.boss || e.type === "tank"; const mul = unitStat(id,"critMul") + tb("crit").add;
-        shoot(e.x, e.y, "#ff8a80", "arrow"); damageEnemy(e, dmgFor() * (strong ? mul : 1), { type: "physical", crit: strong, src: "assassin" }); }
+        shoot(e.x, e.y, "#ff8a80", "arrow", post.x, post.y); damageEnemy(e, dmgFor() * (strong ? mul : 1), { type: "physical", crit: strong, src: "assassin" }); }
       break;
     }
     case "mage": {
       // Slow purple ORB (visually distinct from archer arrows) + splash burst.
       const e = nearestEnemyToBase();
       if (e) { let r = (unitStat(id,"splash") + tb("splash").add) * buffProd("mageSplashMul");
-        shoot(e.x, e.y, DMG.mage, "orb"); boom(e.x, e.y, r, DMG.mage, "burst"); splashDamage(e.x, e.y, r, dmgFor(), { type: "mage", src: "mage" }); }
+        shoot(e.x, e.y, DMG.mage, "orb", post.x, post.y); boom(e.x, e.y, r, DMG.mage, "burst"); splashDamage(e.x, e.y, r, dmgFor(), { type: "mage", src: "mage" }); }
       break;
     }
     case "cannon": {
-      // Big orange area explosion. (Heavy Ordnance scales via dmgMul.cannon.)
+      // Big orange area explosion, fired from the cannon's position.
       const e = nearestEnemyToBase();
       if (e) { const r = unitStat(id,"splash") + tb("splash").add;
-        boom(e.x, e.y, r, DMG.cannon, "burst"); boom(e.x, e.y, r, DMG.cannon, "ring"); splashDamage(e.x, e.y, r, dmgFor(), { type: "cannon", src: "cannon" }); }
+        shoot(e.x, e.y, DMG.cannon, "orb", post.x, post.y); boom(e.x, e.y, r, DMG.cannon, "burst"); boom(e.x, e.y, r, DMG.cannon, "ring"); splashDamage(e.x, e.y, r, dmgFor(), { type: "cannon", src: "cannon" }); }
       break;
     }
     case "icewizard": {
@@ -1802,7 +1828,7 @@ function unitAttack(id) {
       const e = nearestEnemyToBase();
       if (e) { const r = unitStat(id,"splash"); let slow = unitStat(id,"slow") + (unitTalentBonus(id,"slow").mul - 1);
         slow = Math.min(0.9, slow + buffSum("slowAdd"));   // Deep Freeze / Frostbite / Frozen Heart
-        shoot(e.x, e.y, DMG.ice, "orb"); boom(e.x, e.y, r, DMG.ice, "ring");
+        shoot(e.x, e.y, DMG.ice, "orb", post.x, post.y); boom(e.x, e.y, r, DMG.ice, "ring");
         for (const t of run.enemies.slice()) if (Math.hypot(t.x-e.x, t.y-e.y) <= r + t.r) { damageEnemy(t, dmgFor(), { type: "ice", src: "icewizard" }); applySlow(t, slow, unitStat(id,"slowDur")); }
       }
       break;
@@ -1810,14 +1836,16 @@ function unitAttack(id) {
     case "firewizard": {
       // Direct hit + lingering burn (burn ticks attributed to the fire wizard).
       const e = nearestEnemyToBase();
-      if (e) { const burn = unitStat(id,"burn") * tb("burn").mul * allDmgMul; shoot(e.x, e.y, DMG.fire, "orb"); damageEnemy(e, dmgFor(), { type: "fire", src: "firewizard" }); applyBurn(e, burn); }
+      if (e) { const burn = unitStat(id,"burn") * tb("burn").mul * allDmgMul; shoot(e.x, e.y, DMG.fire, "orb", post.x, post.y); damageEnemy(e, dmgFor(), { type: "fire", src: "firewizard" }); applyBurn(e, burn); }
       break;
     }
     case "knight": {
-      // Defends the zone in front of the wall: damages + slows enemies there.
-      const guard = unitStat(id,"guard") + tb("guard").add;
+      // Each field post projects an AoE that damages + slows enemies inside it.
+      const r = knightRadius();
       const slow = unitStat(id,"slow") * (1 + talentEffect("t_knight_block"));
-      for (const t of run.enemies) if (Math.hypot(t.x-BASE.x, t.y-BASE.y) <= guard) { damageEnemy(t, dmgFor(), { type: "physical", src: "knight" }); applySlow(t, slow, 0.6); }
+      for (const p of knightPositions()) {
+        for (const t of run.enemies) if (Math.hypot(t.x - p.x, t.y - p.y) <= r + t.r) { damageEnemy(t, dmgFor(), { type: "physical", src: "knight" }); applySlow(t, slow, 0.6); }
+      }
       break;
     }
     case "priest": {
@@ -1861,7 +1889,9 @@ function spawnText(x, y, text, color, opts) {
   });
 }
 // style: "arrow" (thin fast line) | "orb" (travelling glowing ball, e.g. mage)
-function shoot(tx, ty, color, style) { run.projectiles.push({ x: BASE.x, y: BASE.y - 20, tx, ty, color, style: style || "arrow", life:0.18, t:0 }); }
+// Projectiles fire from (sx,sy) — defaults to the castle. Unit shots pass the
+// unit's own position so attacks originate from the unit; clicks use the castle.
+function shoot(tx, ty, color, style, sx, sy) { run.projectiles.push({ x: (sx == null ? BASE.x : sx), y: (sy == null ? BASE.y - 20 : sy), tx, ty, color, style: style || "arrow", life:0.18, t:0 }); }
 // style: "ring" (expanding outline) | "burst" (filled fading blob)
 function boom(x, y, r, color, style) { run.effects.push({ kind:"boom", x, y, r, color: color || DMG.cannon, style: style || "ring", life:0.35, t:0 }); }
 // Distinct click-AOE shockwave: translucent fill + bright dashed ring.
@@ -2050,8 +2080,7 @@ function drawBase() {
     ctx.beginPath(); ctx.ellipse(BASE.x, BASE.y + 42, 196, 26, 0, 0, Math.PI * 2); ctx.fill();
     setCanvasQuality();
     ctx.drawImage(castleImg, Math.round(BASE.x - cW / 2), Math.round(cTop), cW, cH);
-    drawFortLabel(pct, keep);
-    drawDefenders(wall);
+    drawDefenders();
     return;
   }
 
@@ -2144,44 +2173,36 @@ function drawBase() {
     }
   }
 
-  drawFortLabel(pct, keep);
-  drawDefenders(wall);
+  // (The "Frontier Keep · <state>" banner was removed — that info is shown in
+  //  the Castle Status side panel instead.)
+  drawDefenders();
 }
-// Floating fortification label — separate from the structure itself.
-function drawFortLabel(pct, keep) {
-  ctx.fillStyle = 'rgba(8,12,20,.72)';
-  ctx.fillRect(BASE.x - 90, keep.y - 54, 180, 28);
-  ctx.strokeStyle = 'rgba(255,255,255,.08)';
-  ctx.strokeRect(BASE.x - 90, keep.y - 54, 180, 28);
-  ctx.fillStyle = '#eaf2ff';
-  ctx.font = 'bold 13px sans-serif';
-  ctx.textAlign = 'center';
-  const state = fortressState(pct).label;
-  ctx.fillText('Frontier Keep · ' + state, BASE.x, keep.y - 35);
-}
-// Equipped defenders perched on the wall (sprite, or emoji fallback).
-function drawDefenders(wall) {
-  ctx.font = '20px sans-serif';
-  for (let i = 0; i < persist.equipped.length; i++) {
-    const id = persist.equipped[i], x = BASE.x - 76 + i * 38, y = wall.y - 28 + (i % 2 ? 0 : -3);
-    ctx.fillStyle = 'rgba(12,15,23,.55)'; ctx.beginPath(); ctx.arc(x, y + 8, 19, 0, Math.PI * 2); ctx.fill();
-    if (!drawSprite(UNIT_IMAGES[id], x, y, 48, 48)) ctx.fillText(UNITS[id].emoji, x, y + 7);
+// Equipped defenders spaced out along the wall (sprite, or emoji fallback).
+function drawDefenders() {
+  ctx.font = '20px sans-serif'; ctx.textAlign = 'center';
+  const n = persist.equipped.length;
+  for (let i = 0; i < n; i++) {
+    const id = persist.equipped[i], p = defenderPos(i, n);
+    ctx.fillStyle = 'rgba(12,15,23,.55)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
+    if (!drawSprite(UNIT_IMAGES[id], p.x, p.y, 50, 50)) ctx.fillText(UNITS[id].emoji, p.x, p.y + 7);
   }
-}/* Knight's defensive zone — a transparent arc + dashed outline in front of
-   the wall, with a label, so the player can see exactly where the knight
-   guards. Enemies inside this zone are damaged and slowed each attack. */
+}
+/* Knight field posts: each active knight projects an AoE (damages + slows).
+   Drawn as a red zone with the knight sprite at its centre and an "AOE" tag. */
 function drawKnightZone() {
-  const g = unitStat("knight","guard") + unitTalentBonus("knight","guard").add;
-  // Filled translucent upper half-disc (the side enemies approach from).
-  ctx.fillStyle = "rgba(120,170,255,0.08)";
-  ctx.beginPath(); ctx.arc(BASE.x, BASE.y, g, Math.PI, 2*Math.PI); ctx.lineTo(BASE.x, BASE.y); ctx.closePath(); ctx.fill();
-  // Dashed boundary so the range is obvious.
-  ctx.strokeStyle = "rgba(150,185,255,0.55)"; ctx.lineWidth = 2; ctx.setLineDash([7,6]);
-  ctx.beginPath(); ctx.arc(BASE.x, BASE.y, g, Math.PI, 2*Math.PI); ctx.stroke();
-  ctx.setLineDash([]); ctx.lineWidth = 1;
-  // Label/icon for the zone.
-  ctx.fillStyle = "rgba(190,210,255,0.9)"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
-  ctx.fillText("🛡️ Knight Guard", BASE.x, BASE.y - g - 6);
+  const r = knightRadius();
+  for (const p of knightPositions()) {
+    ctx.fillStyle = "rgba(239,83,83,0.12)";
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(255,95,95,0.55)"; ctx.lineWidth = 2; ctx.setLineDash([9,7]);
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]); ctx.lineWidth = 1;
+    // knight figure at the centre
+    ctx.fillStyle = 'rgba(12,15,23,.5)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 24, 24, 8, 0, 0, Math.PI * 2); ctx.fill();
+    if (!drawSprite(UNIT_IMAGES.knight, p.x, p.y, 56, 56)) { ctx.fillStyle = '#cdd6e6'; ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🛡️', p.x, p.y + 9); }
+    ctx.fillStyle = "rgba(255,150,150,0.92)"; ctx.font = "bold 14px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("AOE", p.x, p.y + r - 10);
+  }
 }
 // Game speed: 1 = normal, 2 = double. We achieve 2× by running the SAME
 // fixed-size update step twice per frame (sub-stepping) rather than doubling
@@ -2684,8 +2705,9 @@ if (resolutionSelectEl) {
 }
 if (resolutionApplyEl) resolutionApplyEl.onclick = () => applyResolutionScale(resolutionSelectEl ? resolutionSelectEl.value : settings.resolutionScale);
 document.getElementById("deadContinue").onclick = () => setState("MENU");
+const SPEED_CYCLE = [1, 2, 4, 8];   // press cycles 1× → 2× → 4× → 8× → 1×
 document.getElementById("speedBtn").onclick = () => {
-  gameSpeed = gameSpeed === 1 ? 2 : 1;
+  gameSpeed = SPEED_CYCLE[(SPEED_CYCLE.indexOf(gameSpeed) + 1) % SPEED_CYCLE.length];
   document.getElementById("speedBtn").textContent = "⏩ " + gameSpeed + "×";
 };
 document.getElementById("buyTPBtn").onclick = buyTalentPoint;

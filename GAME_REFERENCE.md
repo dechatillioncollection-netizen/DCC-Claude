@@ -121,7 +121,7 @@ Only equipped units fight. Stats scale per level via
 |------|-------|-----------|-----|--------------|-----------|------|
 | Archer | 🏹 | 50 | 4 (+2/lvl) | 0.60 | single target | cheap, fast |
 | Mage | 🔮 | 130 | 9 (+5/lvl) | 1.40 | splash r=60 | splash damage |
-| Knight | 🛡️ | 110 | 3 (+2/lvl) | 0.80 | guard r=130, slow 0.45 | melee zone defender |
+| Knight | 🛡️ | 110 | 3 (+2/lvl) | 0.80 | AoE r=130, slow 0.45 | field AoE (2–5 posts) |
 | Cannon | 💣 | 220 | 30 (+14/lvl) | 2.60 | splash r=95 | high AoE |
 | Priest | ✨ | 150 | 0 | 1.50 | heal 6 (+4/lvl) | heals base |
 | Ranger | 🎯 | 95 | 7 (+3/lvl) | 0.90 | — | anti fast/flying |
@@ -146,10 +146,12 @@ Only equipped units fight. Stats scale per level via
   = `burn · (1+0.25·rank) · allDmgMul · typeMul(fire)`, lasting 3 s
   (×2 with Wildfire). Burn applies silently each frame and shows one
   combined fire number ~every 0.45 s.
-- **Knight** — guards a **zone** (radius 130) in front of the wall, drawn
-  as a translucent arc + dashed boundary + "🛡️ Knight Guard" label. Each
-  attack damages **and** slows every enemy inside (type `physical`,
-  slow = `0.45·(1+0.10·rank(t_knight_block))`, 0.6 s).
+- **Knight** — a **field unit**: projects one AoE (radius 130) per knight
+  post out on the battlefield (`knightPositions()`), each drawn as a red
+  zone with a knight sprite + "AOE" tag. **2 posts by default, +1 per
+  Knight Guard rank up to 5** (`knightCount()`); posts are spread so their
+  AoEs don't overlap. Each attack damages **and** slows every enemy inside
+  every post (type `physical`, slow = `0.45·(1+0.10·rank)`, 0.6 s).
 - **Assassin** — targets the **highest-HP** enemy; deals a crit
   (×`critMul`, base 4, +0.6/rank) vs **bosses and tanks**, normal damage
   otherwise (type `physical`).
@@ -273,7 +275,7 @@ Talent points are bought with coins: **`nextTPCost = ceil(100 · 1.18^tpBought)`
 | Mage Splash | +15 mage splash radius | 6 | 1 |
 | Cannon Area | +20 cannon splash radius | 6 | 1 |
 | Priest Healing | +20% priest heal | 8 | 1 |
-| Knight Guard | +10% knight slow (guard radius bonus is negligible in current impl) | 6 | 1 |
+| Knight Guard | +1 field knight (max 5) & +10% slow per rank | 6 | 1 |
 | Assassin Crit | +0.6× assassin crit | 8 | 1 |
 | Ice Slow | +5% ice slow strength | 6 | 1 |
 | Fire Burn | +25% fire burn dmg | 8 | 1 |

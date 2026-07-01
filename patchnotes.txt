@@ -26,6 +26,20 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v6.0.0 — MAJOR — 2026-07-01 14:41 SAST
+  Changed:
+    - Speed button now cycles 1x -> 2x -> 4x -> 8x -> 1x (was 1x/2x).
+    - Knight reworked from a base-centred zone into a FIELD unit: it now
+      projects AoE posts out on the battlefield (2 by default), each
+      damaging + slowing enemies inside. The Knight Guard talent adds one
+      knight per rank up to 5 total, spread so their AoEs never overlap.
+    - Equipped units are spaced out along the wall (wider formation).
+    - Unit attacks now originate from each unit's position on the wall;
+      click damage still originates from the castle.
+  Removed:
+    - The floating "Frontier Keep - <state>" banner on the battlefield
+      (that info already lives in the Castle Status panel).
+
 v5.5.0 — UPDATE — 2026-07-01 10:39 SAST
   Added:
     - README.md — how to start the game (just open game.html offline) and a
