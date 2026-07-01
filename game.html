@@ -1714,20 +1714,25 @@ function applySlow(e, amount, dur) {
 }
 
 /* ---- Targeting ---- */
+// Units only engage enemies that have entered the viewable field. Enemies
+// spawn at y = -20 (above the top edge); this caps the max targeting range a
+// little so units can't shoot foes that aren't on-screen yet. Tune ENGAGE_TOP.
+const ENGAGE_TOP = 40;
+function engageable(e) { return e.y >= ENGAGE_TOP; }
 function nearestEnemyToBase() {
   let best = null, bestD = Infinity;
-  for (const e of run.enemies) { const d = BASE.y - e.y; if (d < bestD) { bestD = d; best = e; } }
+  for (const e of run.enemies) { if (!engageable(e)) continue; const d = BASE.y - e.y; if (d < bestD) { bestD = d; best = e; } }
   return best;
 }
 function nearestEnemyTo(x, y, filter) {
   let best = null, bestD = Infinity;
-  for (const e of run.enemies) { if (filter && !filter(e)) continue;
+  for (const e of run.enemies) { if (!engageable(e) || (filter && !filter(e))) continue;
     const d = Math.hypot(e.x - x, e.y - y); if (d < bestD) { bestD = d; best = e; } }
   return best;
 }
 function strongestEnemy() {
   let best = null, bestHP = -1;
-  for (const e of run.enemies) if (e.hp > bestHP) { bestHP = e.hp; best = e; }
+  for (const e of run.enemies) { if (!engageable(e)) continue; if (e.hp > bestHP) { bestHP = e.hp; best = e; } }
   return best;
 }
 

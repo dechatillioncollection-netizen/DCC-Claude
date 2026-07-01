@@ -26,6 +26,13 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v5.3.3 — HOTFIX — 2026-07-01 09:53 SAST
+  Fixed:
+    - Capped unit targeting range: units no longer attack enemies that
+      haven't entered the viewable field yet (enemies spawn above the top
+      edge at y=-20). Added an ENGAGE_TOP gate so only on-screen enemies
+      are targeted by archer/ranger/mage/cannon/ice/fire/assassin.
+
 v5.3.2 — HOTFIX — 2026-07-01 09:44 SAST
   Changed:
     - Added a clear brown dirt road (with wheel ruts) down the middle of
