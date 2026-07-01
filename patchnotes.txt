@@ -26,6 +26,12 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v5.3.2 — HOTFIX — 2026-07-01 09:44 SAST
+  Changed:
+    - Added a clear brown dirt road (with wheel ruts) down the middle of
+      sprites/background.png, running from the top entry to the keep
+      courtyard, so enemies march down a visible road.
+
 v5.3.1 — HOTFIX — 2026-07-01 09:43 SAST
   Changed:
     - Reworked sprites/background.png into a top-down battlefield (no sky /
