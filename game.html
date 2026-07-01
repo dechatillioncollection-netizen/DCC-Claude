@@ -1268,6 +1268,13 @@ function loadSpriteMap(map) {
 }
 const UNIT_IMAGES = loadSpriteMap(UNIT_SPRITES);
 const ENEMY_IMAGES = loadSpriteMap(ENEMY_SPRITES);
+// Swappable scenery sprites — replace these PNGs to reskin the battlefield.
+// Both degrade gracefully to the old procedural drawing if the file is missing.
+const FIELD_BG_SRC = 'sprites/background.png';
+const CASTLE_SRC   = 'sprites/castle.png';
+const FIELD_BG_IMG = new Image(); FIELD_BG_IMG.src = FIELD_BG_SRC;
+const CASTLE_IMG   = new Image(); CASTLE_IMG.src   = CASTLE_SRC;
+const imgReady = (im) => im && im.complete && im.naturalWidth > 0;
 function spriteTag(src, cls, alt) {
   return '<img class="' + cls + ' sprite-icon" src="' + src + '" alt="' + alt + '">';
 }
@@ -1905,14 +1912,20 @@ function update(dt) {
 function render() {
   setCanvasQuality();
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-  // Visual-only battlefield dressing: clearer sky/ground separation and subtle lanes.
-  const bg = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
-  bg.addColorStop(0, "#111a2c"); bg.addColorStop(0.62, "#0d1322"); bg.addColorStop(1, "#101b18");
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-  ctx.fillStyle = "rgba(102,187,106,0.08)"; ctx.fillRect(0, BASE_LINE, CANVAS_W, CANVAS_H - BASE_LINE);
-  for (let x = 60; x < CANVAS_W; x += 90) {
-    ctx.strokeStyle = "rgba(255,255,255,0.035)"; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x - 38, BASE_LINE); ctx.stroke();
+  // Field background: swappable sprites/background.png (drawn to fill the
+  // field). Falls back to the procedural gradient + lanes if it's missing.
+  if (imgReady(FIELD_BG_IMG)) {
+    ctx.drawImage(FIELD_BG_IMG, 0, 0, CANVAS_W, CANVAS_H);
+  } else {
+    const bg = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+    bg.addColorStop(0, "#111a2c"); bg.addColorStop(0.62, "#0d1322"); bg.addColorStop(1, "#101b18");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.fillStyle = "rgba(102,187,106,0.08)"; ctx.fillRect(0, BASE_LINE, CANVAS_W, CANVAS_H - BASE_LINE);
+    for (let x = 60; x < CANVAS_W; x += 90) {
+      ctx.strokeStyle = "rgba(255,255,255,0.035)"; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x - 38, BASE_LINE); ctx.stroke();
+    }
   }
+  // Gameplay cue (always): the line enemies must cross to damage the base.
   ctx.strokeStyle = "rgba(79,195,247,0.5)"; ctx.lineWidth = 2; ctx.setLineDash([8,7]);
   ctx.beginPath(); ctx.moveTo(0, BASE_LINE); ctx.lineTo(CANVAS_W, BASE_LINE); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1;
   ctx.fillStyle = "rgba(79,195,247,0.08)"; ctx.fillRect(0, BASE_LINE - 2, CANVAS_W, 4);
@@ -2004,6 +2017,39 @@ function drawBase() {
   const keep = { w: 170, h: 118, x: BASE.x - 85, y: BASE.y - 150 };
   const damage = 1 - pct;
 
+  // ----- Fortress art: swappable sprites/castle.png -----
+  // If the castle image is present we draw it (with a health-reactive damage
+  // overlay); otherwise we fall back to the original procedural keep + wall.
+  if (imgReady(CASTLE_IMG)) {
+    const cW = 372, cH = 306, cCx = BASE.x, cBottom = BASE.y + 54, cTop = cBottom - cH;
+    // soft ground shadow
+    ctx.fillStyle = 'rgba(0,0,0,.30)';
+    ctx.beginPath(); ctx.ellipse(BASE.x, BASE.y + 42, 196, 26, 0, 0, Math.PI * 2); ctx.fill();
+    setCanvasQuality();
+    ctx.drawImage(CASTLE_IMG, Math.round(cCx - cW / 2), Math.round(cTop), cW, cH);
+    // Damage overlay: darken + embers + smoke as HP drops (keeps the
+    // wall-visibly-breaks feel without per-shape cracks).
+    if (damage > 0.04) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(cCx - cW / 2, cTop, cW, cH); ctx.clip();
+      ctx.fillStyle = 'rgba(18,6,4,' + (damage * 0.5) + ')';
+      ctx.fillRect(cCx - cW / 2, cTop, cW, cH);
+      if (damage > 0.5) {
+        ctx.fillStyle = 'rgba(255,110,40,' + ((damage - 0.5) * 0.55) + ')';
+        ctx.beginPath(); ctx.arc(BASE.x - 34, BASE.y - 48, 24, 0, Math.PI * 2);
+        ctx.arc(BASE.x + 44, BASE.y - 84, 18, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+      if (damage > 0.5) {
+        ctx.fillStyle = 'rgba(44,48,56,' + (damage * 0.5) + ')';
+        for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(BASE.x - 64 + i * 64, cTop + 26 - i * 10, 15 + i * 5, 0, Math.PI * 2); ctx.fill(); }
+      }
+    }
+    drawFortLabel(pct, keep);
+    drawDefenders(wall);
+    return;
+  }
+
   // Rear castle silhouette / glow
   const glow = ctx.createRadialGradient(BASE.x, keep.y + 50, 10, BASE.x, keep.y + 70, 170);
   glow.addColorStop(0, 'rgba(79,195,247,.18)');
@@ -2093,7 +2139,11 @@ function drawBase() {
     }
   }
 
-  // Floating fortification label — separate from the structure itself.
+  drawFortLabel(pct, keep);
+  drawDefenders(wall);
+}
+// Floating fortification label — separate from the structure itself.
+function drawFortLabel(pct, keep) {
   ctx.fillStyle = 'rgba(8,12,20,.72)';
   ctx.fillRect(BASE.x - 90, keep.y - 54, 180, 28);
   ctx.strokeStyle = 'rgba(255,255,255,.08)';
@@ -2103,8 +2153,9 @@ function drawBase() {
   ctx.textAlign = 'center';
   const state = fortressState(pct).label;
   ctx.fillText('Frontier Keep · ' + state, BASE.x, keep.y - 35);
-
-  // Equipped defenders perched on the wall.
+}
+// Equipped defenders perched on the wall (sprite, or emoji fallback).
+function drawDefenders(wall) {
   ctx.font = '20px sans-serif';
   for (let i = 0; i < persist.equipped.length; i++) {
     const id = persist.equipped[i], x = BASE.x - 76 + i * 38, y = wall.y - 28 + (i % 2 ? 0 : -3);

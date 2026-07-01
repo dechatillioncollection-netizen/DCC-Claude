@@ -26,6 +26,18 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v5.3.0 — UPDATE — 2026-07-01 09:39 SAST
+  Changed:
+    - Replaced the procedural block-shape castle with a proper fortress
+      sprite (sprites/castle.png) — original art, keeps a health-reactive
+      damage overlay (darken + embers + smoke as HP drops).
+  Added:
+    - Battlefield background sprite (sprites/background.png) — a field with
+      horizon + perspective path, so enemies read as marching down a field
+      instead of falling through a blue void.
+    - Both scenery sprites are swappable (drop in your own PNG) and fall
+      back to the old procedural drawing if the file is missing.
+
 v5.2.0 — UPDATE — 2026-07-01 08:54 SAST
   Added:
     - CLAUDE.md — project guide capturing the conventions followed when
