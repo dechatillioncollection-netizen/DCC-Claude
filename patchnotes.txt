@@ -1,0 +1,81 @@
+================================================================
+ CLICK DEFENDERS — PATCH NOTES
+================================================================
+All times are South Africa Standard Time (SAST, UTC+2).
+
+Versioning scheme
+  MAJOR  (X.0.0) — a release that ADDS more than 3 separate things
+  UPDATE (x.Y.0) — a release that ADDS one to three things
+  HOTFIX (x.y.Z) — a fix / correction only, no new feature
+
+Newest entries are at the top.
+----------------------------------------------------------------
+
+v5.1.0 — UPDATE — 2026-07-01 08:50 SAST
+  Added:
+    - patchnotes.txt (this file), with the versioning scheme above.
+  Housekeeping:
+    - Removed index.html (an unrelated "Staff Punch Card" page, not part
+      of this game and referenced nowhere).
+    - Removed README.md (18-byte placeholder, unused).
+
+v5.0.0 — MAJOR — 2026-07-01
+  Added:
+    - Sprite art for all 10 units and all 5 enemy types (PNG images, with
+      a coloured-circle fallback if an image fails to load).
+    - 1600x900 battlefield (up from 740x540), with enemy-speed rescaling
+      (COMPACT_FIELD_SPEED_SCALE) so pacing stays the same on the bigger field.
+    - Settings screen with a render-resolution scale (0.5/1/2/3x), saved to
+      its own localStorage key.
+    - Status icons shown just below enemies: freeze and burn.
+  Fixed:
+    - Click hit-area now tracks the drawn sprite (enemyHitR) instead of the
+      tiny gameplay radius, so clicking a visible enemy reliably registers.
+
+v4.1.0 — UPDATE — 2026-07-01
+  Fixed:
+    - Editing run-buffs.js now changes actual buff STATS, not just the
+      label (all previously-hardcoded buffs converted to data-driven fields).
+  Added:
+    - Live damage meter showing who deals the most damage this run.
+    - Save to File / Load from File buttons on the main menu.
+
+v4.0.0 — MAJOR — 2026-07-01
+  Added:
+    - Expanded run-buff pool to 43, including a cursed category (a big boon
+      paired with a real downside; stacks multiplicatively).
+    - Run Challenges: Swarm Mode, Elite March, Fragile Base, No-Click Run,
+      Greedy Run (one optional modifier per run).
+    - Save export / import as validated .txt files.
+    - External run-buffs.js so the buff pool can be modded without editing
+      the HTML.
+
+v3.1.0 — UPDATE — 2026-07-01
+  Added:
+    - 2x game-speed toggle (implemented by sub-stepping, so fight outcomes
+      are identical to 1x).
+
+v3.0.0 — MAJOR — 2026-07-01
+  Added:
+    - Damage-type colour system shared by numbers and attack effects.
+    - Readable, non-overlapping floating damage numbers; burn ticks now
+      combine into one periodic number.
+    - Knight guard zone (visible defensive arc + label).
+    - Clearer per-unit attack visuals (mage orbs, cannon explosions, frost
+      rings, quick arrows, assassin crits).
+
+v2.0.0 — MAJOR — 2026-07-01
+  Added:
+    - Screen/state machine with separate screens: Main Menu, Combat,
+      Upgrades, Info, Boss Reward, Dead.
+    - Fantasy-styled main menu.
+    - Click anywhere on the battlefield to shoot (not only on enemies).
+    - New AOE click-damage talent (Click Shockwave).
+
+v1.0.0 — MAJOR — 2026-07-01
+  Added:
+    - Initial Click Defenders release: click-to-shoot combat, 10 units
+      (equip up to 5), waves with scaling enemies, a boss every 5th wave
+      granting a temporary buff, a talent tree, coins, base defence, and
+      browser autosave.
+================================================================
