@@ -26,6 +26,14 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v5.2.0 — UPDATE — 2026-07-01 08:54 SAST
+  Added:
+    - CLAUDE.md — project guide capturing the conventions followed when
+      building this game (single-file/offline rule, data-driven design,
+      state machine, persistence split, hit-testing, save validation,
+      quality bar, git workflow) and a pointer to always update
+      patchnotes.txt per its header.
+
 v5.1.0 — UPDATE — 2026-07-01 08:50 SAST
   Added:
     - patchnotes.txt (this file), with the versioning scheme and a
