@@ -380,9 +380,13 @@ Pyromancer (fire ×3) and Frozen Heart (fire ×0.25) yields fire ×0.75.
 
 ## 10b. Run Challenges (optional per-run modifier)
 
-Chosen from the **Challenges** screen before a run; only **one** is active,
-stored on `run.challenge`, shown on the combat bar, and **reset on death**.
-Data lives in `CHALLENGES`; helpers `chMul/chAdd/chFlag/chVal` read it.
+Chosen from the **Challenges** screen before a run. You may stack **up to 3**
+(`MAX_CHALLENGES`): at most **one Main Mode** (`MAIN_MODE_IDS` — the behavioural
+ones that redefine play, so they can't combine) plus any number of stackable
+modifiers. Active ids live on `run.challengeIds` and **reset on death**. Helpers
+aggregate across all active challenges: `chMul` (product), `chAdd` (sum),
+`chFlag` (any), `chVal` (max), `chHas(id)`, and `chMode()` (returns the single
+active Main Mode, or null).
 
 | Challenge | Harder | Reward |
 |-----------|--------|--------|

@@ -429,6 +429,9 @@ button.danger { border-color: var(--bad); color: var(--bad); }
   border-radius:10px; padding:12px; margin-bottom:8px; cursor:pointer; transition:border-color .12s, transform .05s; }
 .challenge-card:hover { border-color:var(--accent); transform:translateY(-1px); }
 .challenge-card.selected { border-color:var(--good); background:#1f2b22; }
+.challenge-card.locked { opacity:.42; cursor:not-allowed; }
+.challenge-card.locked:hover { border-color:var(--border); transform:none; }
+.main-tag { background:rgba(255,202,40,.18); color:var(--accent-2); border:1px solid rgba(255,202,40,.4); }
 .challenge-card .cicon { font-size:30px; }
 .challenge-card .ctitle { font-weight:bold; }
 .challenge-card .cdesc { font-size:12px; color:var(--muted); }
@@ -1228,7 +1231,7 @@ function freshRun() {
     buffs: [],          // temporary boss upgrades (ids) — reset on death
     spawnQueue: [], spawnTimer: 0,
     waveActive: false, interWaveTimer: 0,
-    challenge: null, challengeId: null,
+    challengeIds: [], challenges: [],   // up to 3 active challenges (≤1 Main Mode)
     dmg: {},            // damage meter: { source -> total damage this run }
     meterTimer: 0,      // throttles the meter's DOM refresh
     // ---- Behavioural-mode state ----
@@ -1580,16 +1583,23 @@ const CHALLENGES = {
   nowall:    { id:"nowall",    icon:"💔",  name:"No Wall",        desc:"No base HP — you have limited lives; each enemy that reaches the base costs one. +50% coins.", mode:"nowall", coinMul:1.5 },
 };
 const CHALLENGE_IDS = Object.keys(CHALLENGES);
-let selectedChallenge = null;   // id chosen on the Challenges screen (null = none)
-// The active behavioural mode (null for none / plain modifier challenges).
-function chMode() { return (run && run.challenge && run.challenge.mode) || null; }
+// A run can stack up to 3 challenges: at most ONE "Main Mode" (which changes
+// how the game is played and so can't combine with another Main Mode) plus
+// any number of stackable "modifier" challenges.
+const MAIN_MODE_IDS = ["command", "trapmaster", "spellbook", "overwatch", "leader"];
+const MAX_CHALLENGES = 3;
+let selectedChallenges = [];    // ids chosen on the Challenges screen
+function activeChallengeIds() { return (run && run.challengeIds) || []; }
+function chHas(id) { return activeChallengeIds().includes(id); }
+// The active Main Mode (command/trapmaster/spellbook/overwatch/leader) or null.
+function chMode() { for (const id of activeChallengeIds()) if (MAIN_MODE_IDS.includes(id)) return CHALLENGES[id].mode; return null; }
 // True while unit auto-attacks are replaced by a click/ability-driven mode.
 function autoAttacksOff() { const m = chMode(); return m === "command" || m === "trapmaster" || m === "spellbook" || m === "overwatch"; }
-// Read a challenge modifier from the active run's challenge.
-function chMul(field)  { return (run && run.challenge && run.challenge[field] != null) ? run.challenge[field] : 1; }
-function chAdd(field)  { return (run && run.challenge && run.challenge[field] != null) ? run.challenge[field] : 0; }
-function chFlag(field) { return !!(run && run.challenge && run.challenge[field]); }
-function chVal(field, dflt) { return (run && run.challenge && run.challenge[field] != null) ? run.challenge[field] : dflt; }
+// Aggregate a modifier field across ALL active challenges.
+function chMul(field)  { let p = 1; for (const id of activeChallengeIds()) { const v = CHALLENGES[id][field]; if (v != null) p *= v; } return p; }
+function chAdd(field)  { let s = 0; for (const id of activeChallengeIds()) { const v = CHALLENGES[id][field]; if (v != null) s += v; } return s; }
+function chFlag(field) { for (const id of activeChallengeIds()) if (CHALLENGES[id][field]) return true; return false; }
+function chVal(field, dflt) { let best = null; for (const id of activeChallengeIds()) { const v = CHALLENGES[id][field]; if (v != null) best = best == null ? v : Math.max(best, v); } return best == null ? dflt : best; }
 
 /* ============================================================
    7. GAME LOOP
@@ -1675,14 +1685,14 @@ function computeBaseMaxHP() {
 function clickDamage() {
   let d = 1 + talentEffect("click_dmg");
   d *= buffProd("clickMul");        // Power Clicks ×2 / Piercing Focus ×2 / Overclock ×3 …
-  if (chMode() === "chain") d *= 0.8;   // Chain Reaction: slightly lower direct damage
+  if (chHas("chain")) d *= 0.8;   // Chain Reaction: slightly lower direct damage
   return d;
 }
 // Shared "all unit damage" multiplier (talents + buffs + challenge + engineer,
 // plus Chain Reaction's damage cut and Bounty's temporary boost).
 function globalAllDmgMul() {
   let m = (1 + talentEffect("all_dmg")) * buffProd("allDmgMul") * chMul("allDmgMul") * engineerBuffMul();
-  if (chMode() === "chain") m *= 0.8;
+  if (chHas("chain")) m *= 0.8;
   if (run && run.bonusDmgT > 0) m *= 1.4;       // Bounty reward: extra damage
   if (run && run.overchargeT > 0) m *= 1.6;     // Spellbook: Engineer Overcharge
   return m;
@@ -1692,16 +1702,16 @@ function globalAllDmgMul() {
 function startRun() {
   run = freshRun();
   run.active = true;
-  // Apply the optional challenge chosen on the Challenges screen (one per run).
-  run.challengeId = selectedChallenge;
-  run.challenge = selectedChallenge ? CHALLENGES[selectedChallenge] : null;
+  // Apply the challenges chosen on the Challenges screen (up to 3, ≤1 Main Mode).
+  run.challengeIds = selectedChallenges.slice();
+  run.challenges = run.challengeIds.map(id => CHALLENGES[id]);
   run.baseMaxHP = computeBaseMaxHP();
   run.baseHP = run.baseMaxHP;
-  if (chMode() === "nowall") { run.maxLives = 12; run.lives = 12; }   // No Wall: lives instead of HP
+  if (chHas("nowall")) { run.maxLives = 12; run.lives = 12; }   // No Wall: lives instead of HP
   unitTimers = {};
   startWave(1);
   setState("COMBAT");
-  log(run.challenge ? ("Run started — Challenge: " + run.challenge.name + "!") : "Run started. Good luck!");
+  log(run.challenges.length ? ("Run started — " + run.challenges.map(c => c.name).join(" + ") + "!") : "Run started. Good luck!");
 }
 function startWave(n) {
   run.wave = n;
@@ -1710,7 +1720,7 @@ function startWave(n) {
   run.waveActive = true;
   run.spawnIndex = 0; run.bounty = null;
   // Bounty Hunt: mark a random enemy in this wave's spawn order as the bounty.
-  run.bountyIdx = (chMode() === "bounty" && run.spawnQueue.length) ? Math.floor(Math.random() * run.spawnQueue.length) : -1;
+  run.bountyIdx = (chHas("bounty") && run.spawnQueue.length) ? Math.floor(Math.random() * run.spawnQueue.length) : -1;
   log("Wave " + n + (n % 5 === 0 ? " — BOSS incoming!" : "") + " (" + run.spawnQueue.length + " enemies)");
   refreshCombatBar();
 }
@@ -1722,12 +1732,12 @@ function endRun() {
     wave: run.wave,
     total: totalDamage,
     dmg: dmgSnapshot,
-    challengeName: run.challenge ? run.challenge.name : null,
+    challengeName: run.challenges && run.challenges.length ? run.challenges.map(c => c.name).join(" + ") : null,
     endedAt: Date.now()
   };
   run.buffs = [];                 // temporary buffs reset on death
-  run.challenge = null;           // challenge ends with the run
-  selectedChallenge = null;       // must be re-chosen for the next run
+  run.challengeIds = []; run.challenges = [];   // challenges end with the run
+  selectedChallenges = [];        // must be re-chosen for the next run
   document.getElementById("deadText").textContent = "You fell on wave " + run.wave + ".";
   save();
   setState("DEAD");
@@ -1764,7 +1774,7 @@ function killEnemy(e) {
   // Bounty Hunt: killing the marked enemy grants a temporary wave bonus.
   if (e.bounty) { run.bounty = null; grantBountyReward(e); }
   // Chain Reaction: enemies explode on death, hurting nearby foes.
-  if (chMode() === "chain") { boom(e.x, e.y, 90, DMG.cannon, "burst"); splashDamage(e.x, e.y, 90, e.maxHP * 0.25, { type: "cannon", src: "chain" }); }
+  if (chHas("chain")) { boom(e.x, e.y, 90, DMG.cannon, "burst"); splashDamage(e.x, e.y, 90, e.maxHP * 0.25, { type: "cannon", src: "chain" }); }
   if (e.boss) onBossKilled();
 }
 // Area damage. opts is passed straight through to damageEnemy so splash
@@ -1919,7 +1929,7 @@ function unitAttack(id, slot, mods) {
 }
 function healBase(amt) {
   // No Wall mode: healing charges a pool that slowly restores lives.
-  if (chMode() === "nowall") {
+  if (chHas("nowall")) {
     run.healPool += amt;
     while (run.healPool >= 40 && run.lives < run.maxLives) { run.healPool -= 40; run.lives++; spawnText(BASE.x + rand(-40,40), BASE.y - 30, "+1 ❤", DMG.heal, { heal: true }); }
     return;
@@ -2147,7 +2157,7 @@ function update(dt) {
       const type = run.spawnQueue.shift();
       const ne = spawnEnemy(type, run.wave);
       // Bounty Hunt: flag the marked enemy in the spawn order.
-      if (chMode() === "bounty" && run.spawnIndex === run.bountyIdx) { ne.bounty = true; ne.hp *= 1.4; ne.maxHP = ne.hp; run.bounty = ne; }
+      if (chHas("bounty") && run.spawnIndex === run.bountyIdx) { ne.bounty = true; ne.hp *= 1.4; ne.maxHP = ne.hp; run.bounty = ne; }
       run.spawnIndex++;
       run.enemies.push(ne);
       run.spawnTimer = (type === "boss" ? 0.2 : rand(0.45, 0.85)) * chMul("spawnRateMul"); // Swarm Mode spawns faster
@@ -2171,7 +2181,7 @@ function update(dt) {
     if (e.y >= BASE_LINE) {
       const idx = run.enemies.indexOf(e); if (idx > -1) run.enemies.splice(idx, 1);
       if (e.bounty) run.bounty = null;   // bounty escaped — no reward
-      if (chMode() === "nowall") {
+      if (chHas("nowall")) {
         // No Wall: lose a life (bounty costs two) instead of HP.
         const loss = e.bounty ? 2 : 1;
         run.lives -= loss;
@@ -2627,7 +2637,7 @@ function refreshCombatBar() {
   const w = document.getElementById("cWave"); if (!w) return;
   w.textContent = run ? run.wave : 0;
   const activeHP = run && run.active;
-  const nowall = chMode() === "nowall";
+  const nowall = chHas("nowall");
   const pct = nowall ? clamp(run.lives / run.maxLives, 0, 1) : (activeHP ? clamp(run.baseHP / run.baseMaxHP, 0, 1) : 1);
   document.getElementById("cHP").textContent = nowall ? ("❤ " + run.lives + "/" + run.maxLives) : (activeHP ? Math.ceil(run.baseHP) + "/" + run.baseMaxHP : computeBaseMaxHP());
   const hpBar = document.getElementById("cHPBar");
@@ -2641,7 +2651,7 @@ function refreshCombatBar() {
   if (run && run.buffs.length) bl.innerHTML = run.buffs.map(id => { const u = BU[id]; return u ? '<span class="tag">'+u.icon+" "+u.name+'</span>' : ""; }).join("");
   else bl.innerHTML = '<span class="tag">none</span>';
   const cw = document.getElementById("cChallengeWrap"), ct = document.getElementById("cChallenge");
-  if (run && run.challenge) { cw.style.display = ""; ct.textContent = run.challenge.icon + " " + run.challenge.name; }
+  if (run && run.challengeIds && run.challengeIds.length) { cw.style.display = ""; ct.textContent = run.challengeIds.map(id => CHALLENGES[id].icon + " " + CHALLENGES[id].name).join(" · "); }
   else cw.style.display = "none";
 
   const fortBar = document.getElementById("fortOverlayBar");
@@ -2897,19 +2907,51 @@ function buyTalentPoint() {
 }
 
 /* ---- Challenges screen ---- */
+// Toggle a challenge selection. At most one Main Mode; up to MAX_CHALLENGES total.
+function toggleChallenge(id) {
+  const i = selectedChallenges.indexOf(id);
+  if (i >= 0) { selectedChallenges.splice(i, 1); }
+  else {
+    if (MAIN_MODE_IDS.includes(id)) selectedChallenges = selectedChallenges.filter(x => !MAIN_MODE_IDS.includes(x)); // only one Main Mode
+    if (selectedChallenges.length >= MAX_CHALLENGES) { log("You can pick at most " + MAX_CHALLENGES + " challenges."); renderChallenges(); return; }
+    selectedChallenges.push(id);
+  }
+  renderChallenges();
+}
 function renderChallenges() {
   const wrap = document.getElementById("challengeList");
   wrap.innerHTML = "";
-  const opts = [{ id:null, icon:"⚔", name:"No Challenge", desc:"A standard run with no modifiers." }]
-    .concat(CHALLENGE_IDS.map(id => CHALLENGES[id]));
-  for (const c of opts) {
-    const div = document.createElement("div");
-    div.className = "challenge-card" + (selectedChallenge === c.id ? " selected" : "");
-    const rewardNote = c.id ? 'Bonus rewards enabled' : 'Balanced default run';
-    div.innerHTML = '<div class="cicon">'+c.icon+'</div><div style="flex:1"><div class="ctitle">'+c.name+'</div><div class="cdesc">'+c.desc+'</div><div class="stat-chips" style="margin-top:10px;"><span class="stat-chip">'+rewardNote+'</span>'+(c.id ? '<span class="stat-chip">Challenge Run</span>' : '<span class="stat-chip">Standard</span>')+'</div></div>';
-    div.onclick = () => { selectedChallenge = c.id; renderChallenges(); };
-    wrap.appendChild(div);
-  }
+  const count = selectedChallenges.length;
+  const mainSelected = selectedChallenges.some(x => MAIN_MODE_IDS.includes(x));
+
+  const head = document.createElement("div");
+  head.className = "quick-tip";
+  head.innerHTML = "Selected <b>" + count + " / " + MAX_CHALLENGES + "</b>. Pick any mix — but only <b>one Main Mode</b> (they change how you play, so they can't combine).";
+  wrap.appendChild(head);
+
+  // "No Challenge" clears everything.
+  const none = document.createElement("div");
+  none.className = "challenge-card" + (count === 0 ? " selected" : "");
+  none.innerHTML = '<div class="cicon">⚔</div><div style="flex:1"><div class="ctitle">No Challenge</div><div class="cdesc">A standard run with no modifiers.</div></div>';
+  none.onclick = () => { selectedChallenges = []; renderChallenges(); };
+  wrap.appendChild(none);
+
+  const section = (title, ids, note) => {
+    const h = document.createElement("div"); h.className = "section-title"; h.textContent = title; wrap.appendChild(h);
+    if (note) { const n = document.createElement("div"); n.className = "help"; n.style.marginBottom = "6px"; n.textContent = note; wrap.appendChild(n); }
+    for (const id of ids) {
+      const c = CHALLENGES[id], sel = selectedChallenges.includes(id), isMain = MAIN_MODE_IDS.includes(id);
+      const locked = !sel && ((count >= MAX_CHALLENGES) || (isMain && mainSelected));
+      const div = document.createElement("div");
+      div.className = "challenge-card" + (sel ? " selected" : "") + (locked ? " locked" : "");
+      div.innerHTML = '<div class="cicon">' + c.icon + '</div><div style="flex:1"><div class="ctitle">' + c.name +
+        (isMain ? ' <span class="tag main-tag">Main</span>' : '') + '</div><div class="cdesc">' + c.desc + '</div></div>';
+      div.onclick = () => { if (!locked || sel) toggleChallenge(id); };
+      wrap.appendChild(div);
+    }
+  };
+  section("Main Modes — choose one (changes how you play)", MAIN_MODE_IDS);
+  section("Modifiers — stack to fill your slots", CHALLENGE_IDS.filter(id => !MAIN_MODE_IDS.includes(id)));
 }
 
 /* ============================================================

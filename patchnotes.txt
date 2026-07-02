@@ -26,6 +26,16 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.1.0 — UPDATE — 2026-07-02 14:16 SAST
+  Added:
+    - Stack up to 3 Run Challenges per run. The Challenges screen is now split
+      into "Main Modes" (Command/Trapmaster/Spellbook/Overwatch/Leader — the
+      ones that change how you play; only ONE can be selected, the rest lock)
+      and stackable "Modifiers" (Swarm/Elite/Fragile/No-Click/Greedy/Bounty/
+      Chain/No Wall). Selecting a second Main Mode replaces the first.
+    - Challenge modifiers now aggregate across all active challenges (coin,
+      damage, HP, etc. multiply/sum together); the combat bar lists them all.
+
 v8.0.0 — MAJOR — 2026-07-02 14:04 SAST
   Added — eight new Run Challenge modes (behavioural, not just modifiers):
     - Command Mode: units don't auto-attack; click to command ALL units to
