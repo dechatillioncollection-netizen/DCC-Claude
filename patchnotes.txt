@@ -26,6 +26,22 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v7.0.0 — MAJOR — 2026-07-02 13:30 SAST
+  Added:
+    - Tabbed Upgrade screen: "Loadout" tab (equipped slots + recruit/upgrade
+      cards) and "Talents" tab (full talent tree + Save Manager). No more one
+      giant scrolling screen.
+    - Shop/unit cards now show "Owned: N" and have BOTH an Upgrade and an
+      Equip button, so you can equip straight from the shop.
+  Changed:
+    - You can now equip the SAME unit multiple times (e.g. 5 Archers). Each
+      copy is its own slot and fights as a separate unit, firing from its own
+      wall position. Unequip now removes one specific slot (not all copies).
+    - Engineer's passive damage buff stacks per equipped Engineer.
+  Removed:
+    - The separate "Inventory (owned)" storage list — equipping now happens
+      on the shop cards, and the 3-card summary banner was dropped.
+
 v6.0.1 — HOTFIX — 2026-07-02 13:15 SAST
   Changed:
     - Installed the real castle damage-state sprites (sprites/castle/

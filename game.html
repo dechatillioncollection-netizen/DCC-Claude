@@ -210,6 +210,19 @@ button.danger { border-color: var(--bad); color: var(--bad); }
 .help { font-size:13px; color:var(--muted); line-height:1.6; }
 .help h3 { color: var(--text); margin: 16px 0 6px; }
 .scroll { max-height:62vh; overflow-y:auto; padding-right:4px; }
+.scroll.tall { max-height:70vh; }
+
+/* Upgrade-screen tabs (Loadout / Talents) */
+.upg-tabs { display:flex; gap:8px; margin-bottom:12px; }
+.upg-tab { flex:0 0 auto; font-size:15px; font-weight:700; padding:10px 20px; border-radius:10px 10px 0 0;
+  background:var(--panel); border:1px solid var(--border); border-bottom:none; color:var(--muted); }
+.upg-tab:hover:not(.active) { background:var(--panel-2); color:var(--text); }
+.upg-tab.active { background:var(--panel-2); color:var(--accent); border-color:var(--accent); box-shadow:inset 0 -3px 0 var(--accent); }
+.upg-pane { display:none; }
+.upg-pane.active { display:block; }
+/* "Owned: N" badge on shop cards */
+.owned-chip { font-weight:700; color:var(--accent-2); background:rgba(255,202,40,.14); border:1px solid rgba(255,202,40,.35);
+  border-radius:999px; padding:2px 10px; font-size:12px; }
 
 #log { font-size:11px; color:var(--muted); background:var(--panel-2); border:1px solid var(--border);
   border-radius:8px; padding:6px 8px; margin-top:10px; height:64px; overflow-y:auto; }
@@ -887,44 +900,32 @@ button.danger { background: rgba(239,83,80,.08); }
       <div class="phase-pill phase-upgrade">UPGRADE PHASE</div>
     </div>
 
-    <div class="upgrade-banner">
-      <div class="summary-card">
-        <div class="summary-label">Loadout</div>
-        <div class="summary-value" id="loadoutSummary">0 / 5</div>
-        <div class="summary-note">Equip your strongest defenders before starting a run.</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-label">Shop</div>
-        <div class="summary-value" id="rosterSummary">0 Owned</div>
-        <div class="summary-note">Owned units stay forever and duplicates raise their level.</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-label">Talents</div>
-        <div class="summary-value" id="talentSummary">0 Ranks</div>
-        <div class="summary-note">Spend points on click power, units, and defence.</div>
-      </div>
+    <!-- Two-tab layout keeps the screen from being one giant scroll. -->
+    <div class="upg-tabs">
+      <button class="upg-tab active" data-utab="loadout">🧝 Loadout</button>
+      <button class="upg-tab" data-utab="talents">🌳 Talents</button>
     </div>
 
-    <div class="upg-grid upgraded-layout">
-      <!-- LEFT: units -->
+    <!-- TAB 1: Loadout — equipped defenders + recruit/upgrade in one place -->
+    <div class="upg-pane active" id="upane-loadout">
       <div class="col unit-panel">
         <div class="panel-head">
           <div>
-            <h3>🧝 Unit Loadout</h3>
-            <div class="panel-subtitle">Choose who fights, then level your roster from the shop.</div>
+            <h3>🧝 Unit Loadout <span class="tag" id="loadoutSummary">0 / 5</span></h3>
+            <div class="panel-subtitle">Equip up to 5 defenders — you can equip the same unit more than once.</div>
           </div>
         </div>
         <div class="section-title">Equipped defenders</div>
         <div id="equipSlots"></div>
-        <div class="quick-tip">Only equipped units fight during a run. Swap freely here before heading into combat.</div>
-        <div class="section-title">Shop — buy &amp; level</div>
-        <div class="help">Buying a unit you already own levels it up. Owned units are kept forever.</div>
-        <div class="scroll" id="shop"></div>
-        <div class="section-title">Inventory (owned)</div>
-        <div id="inventory"></div>
+        <div class="quick-tip">Only equipped units fight during a run. You can stack duplicates (e.g. 5 Archers) — each copy fills one slot and fights as its own unit.</div>
+        <div class="section-title">Recruit &amp; upgrade</div>
+        <div class="help">Buy adds a copy and levels the unit up. <b>Equip</b> adds it straight to an open slot — no scrolling needed.</div>
+        <div class="scroll tall" id="shop"></div>
       </div>
+    </div>
 
-      <!-- RIGHT: permanent upgrades / talent tree -->
+    <!-- TAB 2: Talents — the full talent tree + save manager -->
+    <div class="upg-pane" id="upane-talents">
       <div class="col talent-panel">
         <div class="panel-head">
           <div>
@@ -938,7 +939,7 @@ button.danger { background: rgba(239,83,80,.08); }
           <div class="stat-chips"><span class="stat-chip">Next point: <b id="tpCost">100</b> 🪙</span></div>
           <div class="btns"><button class="primary" id="buyTPBtn">Buy Talent Point</button></div>
         </div>
-        <div class="scroll" id="talents"></div>
+        <div class="scroll tall" id="talents"></div>
 
         <!-- Save Manager: manual export/import of the permanent save -->
         <h3 style="margin-top:16px;">💾 Save Manager</h3>
@@ -1756,8 +1757,10 @@ function strongestEnemy() {
 
 /* ---- Unit behaviours ---- */
 function engineerBuffMul() {
-  if (!persist.equipped.includes("engineer")) return 1;
-  return 1 + unitStat("engineer", "buff") * (1 + talentEffect("t_eng_buff"));
+  // Stacks per equipped Engineer, so a duplicate Engineer adds its buff again.
+  const n = persist.equipped.filter(x => x === "engineer").length;
+  if (!n) return 1;
+  return 1 + n * unitStat("engineer", "buff") * (1 + talentEffect("t_eng_buff"));
 }
 // ---- Formation (where equipped units sit/fire) & knight field posts ----
 const DEFENDER_SPREAD = 380;                 // total width the equipped units span on the wall
@@ -1766,11 +1769,10 @@ function defenderPos(i, n) {
   const step = n > 1 ? DEFENDER_SPREAD / (n - 1) : 0;
   return { x: BASE.x - DEFENDER_SPREAD / 2 + i * step, y: defenderRowY() + (i % 2 ? 0 : -4) };
 }
-// A unit's shots originate from its spot on the wall.
-function unitPost(id) {
-  const i = persist.equipped.indexOf(id);
-  if (i < 0) return { x: BASE.x, y: BASE.y - 20 };
-  return defenderPos(i, persist.equipped.length);
+// A slot's shots originate from that slot's spot on the wall.
+function unitPost(slot) {
+  if (slot == null || slot < 0) return { x: BASE.x, y: BASE.y - 20 };
+  return defenderPos(slot, persist.equipped.length);
 }
 // The Knight is a FIELD unit: 2 posts by default, +1 per Knight Guard rank up
 // to 5, each projecting an AoE that damages & slows enemies inside it. Posts
@@ -1784,11 +1786,13 @@ function knightCount() { return Math.min(5, 2 + talentRank("t_knight_block")); }
 function knightRadius() { return unitStat("knight", "guard") + unitTalentBonus("knight", "guard").add; }
 function knightPositions() { return KNIGHT_POSTS.slice(0, knightCount()).map(p => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H })); }
 
-function unitAttack(id) {
+function unitAttack(id, slot) {
   const allDmgMul = (1 + talentEffect("all_dmg")) * buffProd("allDmgMul") * chMul("allDmgMul") * engineerBuffMul();
   const tb = unitTalentBonus.bind(null, id);
   function dmgFor() { return unitStat(id, "dmg") * tb("dmg").mul * allDmgMul; }
-  const post = unitPost(id);   // attacks originate from the unit's position on the wall
+  // Attacks originate from this copy's own slot position (so duplicates each
+  // fire from their own spot on the wall).
+  const post = unitPost(slot);
 
   switch (id) {
     case "archer": {
@@ -1934,7 +1938,7 @@ function update(dt) {
     const id = persist.equipped[i]; if (!id) continue;
     const cd = (unitStat(id, "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) / attackSpeedMul(id);
     unitTimers[i] = (unitTimers[i] || rand(0, cd)) - dt;
-    if (unitTimers[i] <= 0) { unitTimers[i] = cd; unitAttack(id); if (GS !== "COMBAT") return; }
+    if (unitTimers[i] <= 0) { unitTimers[i] = cd; unitAttack(id, i); if (GS !== "COMBAT") return; }
   }
   // Regen (Berserker's curse disables all base regen this run)
   const regen = buffFlag("noRegen") ? 0 : talentEffect("base_regen") + buffSum("regenAdd");
@@ -2426,14 +2430,8 @@ function refreshUI() {
   document.getElementById("uTP").textContent = persist.talentPoints;
   document.getElementById("tpCost").textContent = fmt(nextTPCost());
   document.getElementById("buyTPBtn").disabled = persist.coins < nextTPCost();
-  const ownedCount = UNIT_IDS.filter(id => (persist.ownedUnits[id] || 0) > 0).length;
-  const loadoutCount = persist.equipped.length;
-  const spentTalentRanks = TALENT_IDS.reduce((sum, id) => sum + talentRank(id), 0);
-  const totalTalentRanks = TALENT_IDS.reduce((sum, id) => sum + TALENTS[id].max, 0);
-  const ls = document.getElementById('loadoutSummary'); if (ls) ls.textContent = loadoutCount + ' / 5';
-  const rs = document.getElementById('rosterSummary'); if (rs) rs.textContent = ownedCount + ' Owned';
-  const ts = document.getElementById('talentSummary'); if (ts) ts.textContent = spentTalentRanks + ' / ' + totalTalentRanks;
-  renderEquip(); renderInventory(); renderShop(); renderTalents();
+  const ls = document.getElementById('loadoutSummary'); if (ls) ls.textContent = persist.equipped.length + ' / 5';
+  renderEquip(); renderShop(); renderTalents();
   save();
 }
 
@@ -2452,47 +2450,37 @@ function renderEquip() {
     if (id) {
       const u = UNITS[id], lvl = persist.ownedUnits[id];
       slot.innerHTML = spriteTag(UNIT_SPRITES[id], 'sprite-icon', u.name) + '<div class="sname">'+u.name+'</div><div class="slvl">Lv '+lvl+'</div><div class="role">'+unitRole(id)+'</div><div class="slot-note">'+(i === 0 ? 'Opens the formation' : 'Ready for battle')+'</div>';
-      const btn = document.createElement("button"); btn.textContent = "Unequip"; btn.onclick = () => unequip(id);
+      const btn = document.createElement("button"); btn.textContent = "Unequip"; btn.onclick = () => unequipSlot(i);
       slot.appendChild(btn);
     } else slot.innerHTML = '<div class="empty-plus">＋</div><div style="color:var(--muted); font-weight:700;">empty</div><div class="role">Open Slot</div><div class="slot-note">Equip a defender from your roster.</div>';
     wrap.appendChild(slot);
   }
 }
-function renderInventory() {
-  const wrap = document.getElementById("inventory"); wrap.innerHTML = "";
-  const owned = UNIT_IDS.filter(id => (persist.ownedUnits[id] || 0) > 0);
-  if (!owned.length) { wrap.innerHTML = '<div class="quick-tip">No units owned yet — buy some in the shop above.</div>'; return; }
-  for (const id of owned) {
-    const u = UNITS[id], lvl = persist.ownedUnits[id], isEq = persist.equipped.includes(id);
-    const card = document.createElement("div"); card.className = "card unit-card";
-    card.innerHTML =
-      '<div class="row">' + spriteTag(UNIT_SPRITES[id], 'sprite-icon', u.name) + '<div style="flex:1"><div class="title">'+u.name+
-      ' <span class="tag '+(isEq?"eq":"")+'">'+(isEq?"equipped":"reserve")+'</span></div>'+
-      '<div class="desc">'+u.desc+'</div>'+
-      '<div class="stat-chips"><span class="stat-chip">Role '+unitRole(id)+'</span><span class="stat-chip">Lv '+lvl+'</span><span class="stat-chip">DMG '+fmt(unitStat(id,"dmg"))+'</span><span class="stat-chip">CD '+unitStat(id,"cd").toFixed(2)+'s</span>'+unitExtraChips(id)+'</div></div></div>';
-    const btns = document.createElement("div"); btns.className = "btns";
-    const eqBtn = document.createElement("button");
-    if (isEq) { eqBtn.textContent = "Unequip"; eqBtn.onclick = () => unequip(id); }
-    else { eqBtn.textContent = "Equip"; eqBtn.onclick = () => equip(id); }
-    btns.appendChild(eqBtn); card.appendChild(btns); wrap.appendChild(card);
-  }
-}
+// Recruit & upgrade cards. Each shows how many the player owns, and has both
+// an Upgrade (buy) button and an Equip button so you can equip straight here.
 function renderShop() {
   const wrap = document.getElementById("shop"); wrap.innerHTML = "";
   for (const id of UNIT_IDS) {
-    const u = UNITS[id], lvl = persist.ownedUnits[id] || 0, cost = unitCost(id);
+    const u = UNITS[id], owned = persist.ownedUnits[id] || 0, cost = unitCost(id);
+    const equippedCount = persist.equipped.filter(x => x === id).length;
+    const slotsFull = persist.equipped.length >= 5;
     const card = document.createElement("div"); card.className = "card unit-card";
     card.innerHTML =
       '<div class="row">' + spriteTag(UNIT_SPRITES[id], 'sprite-icon', u.name) + '<div style="flex:1"><div class="title">'+u.name+
-      (lvl ? ' <span class="tag eq">Lv '+lvl+'</span>' : ' <span class="tag">new recruit</span>')+'</div>'+
+      ' <span class="owned-chip">Owned: '+owned+'</span>' + (equippedCount ? ' <span class="tag eq">equipped ×'+equippedCount+'</span>' : '') + '</div>'+
       '<div class="desc">'+u.desc+'</div>'+
-      '<div class="stat-chips"><span class="stat-chip">Role '+unitRole(id)+'</span><span class="stat-chip">DMG '+fmt(unitStat(id,"dmg"))+'</span><span class="stat-chip">CD '+unitStat(id,"cd").toFixed(2)+'s</span>'+unitExtraChips(id)+'</div></div>'+
+      '<div class="stat-chips"><span class="stat-chip">Role '+unitRole(id)+'</span><span class="stat-chip">Lv '+owned+'</span><span class="stat-chip">DMG '+fmt(unitStat(id,"dmg"))+'</span><span class="stat-chip">CD '+unitStat(id,"cd").toFixed(2)+'s</span>'+unitExtraChips(id)+'</div></div>'+
       '<div class="cost-chip">'+fmt(cost)+'🪙</div></div>';
     const btns = document.createElement("div"); btns.className = "btns";
     const buyBtn = document.createElement("button"); buyBtn.className = "primary";
-    buyBtn.textContent = lvl ? "Upgrade Unit" : "Recruit Unit";
+    buyBtn.textContent = owned ? "Upgrade — " + fmt(cost) + "🪙" : "Recruit — " + fmt(cost) + "🪙";
     buyBtn.disabled = persist.coins < cost; buyBtn.onclick = () => buyUnit(id);
-    btns.appendChild(buyBtn); card.appendChild(btns); wrap.appendChild(card);
+    const eqBtn = document.createElement("button");
+    eqBtn.textContent = "Equip";
+    eqBtn.disabled = owned < 1 || slotsFull;
+    eqBtn.title = owned < 1 ? "Buy this unit first" : (slotsFull ? "All 5 slots full" : "Add to an open slot");
+    eqBtn.onclick = () => equip(id);
+    btns.appendChild(buyBtn); btns.appendChild(eqBtn); card.appendChild(btns); wrap.appendChild(card);
   }
 }
 function renderTalents() {
@@ -2531,15 +2519,18 @@ function buyUnit(id) {
   log("Bought " + UNITS[id].name + " (now Lv " + persist.ownedUnits[id] + ").");
   refreshUI();
 }
+// Equip adds ONE copy of a unit to an open slot. The same unit can be equipped
+// multiple times (e.g. five Archers) — each copy is its own slot / fighter.
 function equip(id) {
   if (!inUpgradeScreen()) return;
-  if (persist.equipped.includes(id)) return;
+  if ((persist.ownedUnits[id] || 0) < 1) { log("Buy " + UNITS[id].name + " first."); return; }
   if (persist.equipped.length >= 5) { log("All 5 slots full — unequip one first."); return; }
   persist.equipped.push(id); refreshUI();
 }
-function unequip(id) {
+// Remove the single copy sitting in a specific slot (so duplicates are handled).
+function unequipSlot(i) {
   if (!inUpgradeScreen()) return;
-  persist.equipped = persist.equipped.filter(x => x !== id); refreshUI();
+  if (i >= 0 && i < persist.equipped.length) { persist.equipped.splice(i, 1); refreshUI(); }
 }
 function buyTalent(id) {
   if (!inUpgradeScreen()) return;
@@ -2695,6 +2686,12 @@ document.getElementById("mQuit").onclick = () => {
   save(); alert("Progress saved. You can close the tab to quit, or keep playing!");
 };
 document.getElementById("uBack").onclick = () => setState("MENU");
+// Upgrade-screen tab switching (Loadout / Talents).
+function setUpgradeTab(name) {
+  document.querySelectorAll(".upg-tab").forEach(b => b.classList.toggle("active", b.dataset.utab === name));
+  document.querySelectorAll(".upg-pane").forEach(p => p.classList.toggle("active", p.id === "upane-" + name));
+}
+document.querySelectorAll(".upg-tab").forEach(b => { b.onclick = () => setUpgradeTab(b.dataset.utab); });
 document.getElementById("iBack").onclick = () => setState("MENU");
 document.getElementById("sBack").onclick = () => setState("MENU");
 const resolutionSelectEl = document.getElementById("resolutionSelect");

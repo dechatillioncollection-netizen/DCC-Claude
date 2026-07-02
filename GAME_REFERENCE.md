@@ -113,9 +113,14 @@ step twice per frame** (sub-stepping), so fight outcomes are identical to
 
 ## 5. Units
 
-10 archetypes. You may **own** any number (each levels up) but **equip ≤5**.
-Only equipped units fight. Stats scale per level via
-`unitStat(id,key) = base + grow*(level-1)`.
+10 archetypes. Buying a unit levels it up (`ownedUnits[id]` = level). You may
+**equip ≤5** slots, and the **same unit can be equipped multiple times** (e.g.
+five Archers) — each equipped entry is its own slot/fighter, firing from its
+own wall position (`unitAttack(id, slot)` → `unitPost(slot)`). Only equipped
+units fight. Stats scale per level via `unitStat(id,key) = base + grow*(level-1)`.
+The Upgrade screen is split into **Loadout** (equipped slots + recruit/upgrade
+cards, each showing "Owned: N" with Upgrade + Equip buttons) and **Talents**
+(the talent tree + Save Manager) tabs.
 
 | Unit | Emoji | Base cost | dmg | cooldown (s) | Key stats | Role |
 |------|-------|-----------|-----|--------------|-----------|------|
