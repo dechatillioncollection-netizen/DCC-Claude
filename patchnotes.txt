@@ -26,6 +26,13 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v6.0.1 — HOTFIX — 2026-07-02 13:15 SAST
+  Changed:
+    - Installed the real castle damage-state sprites (sprites/castle/
+      full.png / damaged.png / destroyed.png, 534x447) in place of the
+      placeholder duplicates. Full = pristine, damaged = cracked,
+      destroyed = broken towers + rubble.
+
 v6.0.0 — MAJOR — 2026-07-01 14:41 SAST
   Changed:
     - Speed button now cycles 1x -> 2x -> 4x -> 8x -> 1x (was 1x/2x).
