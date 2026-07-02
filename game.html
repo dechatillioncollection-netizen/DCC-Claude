@@ -1175,7 +1175,7 @@ function setState(s) {
   // Boss reward is an overlay on top of the frozen combat screen:
   document.getElementById("screen-boss").classList.toggle("hidden", s !== "BOSS_REWARD");
 
-  if (s === "UPGRADES") refreshUI();
+  if (s === "UPGRADES") { setUpgradeTab("loadout"); refreshUI(); }
   if (s === "MENU") renderLastRunDamage();
   if (s === "CHALLENGES") renderChallenges();
   if (s === "SETTINGS") renderSettings();

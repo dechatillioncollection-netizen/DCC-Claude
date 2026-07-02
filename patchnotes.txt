@@ -26,6 +26,11 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v7.0.1 — HOTFIX — 2026-07-02 13:35 SAST
+  Changed:
+    - The Upgrade screen now always opens on the Loadout tab (instead of
+      remembering the last-used tab).
+
 v7.0.0 — MAJOR — 2026-07-02 13:30 SAST
   Added:
     - Tabbed Upgrade screen: "Loadout" tab (equipped slots + recruit/upgrade
