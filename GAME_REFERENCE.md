@@ -392,6 +392,22 @@ Data lives in `CHALLENGES`; helpers `chMul/chAdd/chFlag/chVal` read it.
 | No-Click Run 🚫 | clicks deal 0 damage | units +40% attack speed |
 | Greedy Run 🤑 | base takes +50% damage | ×2 coins |
 
+**Behavioural modes** (`mode` field; hooked via `chMode()` / `autoAttacksOff()`):
+
+| Mode | What it changes |
+|------|-----------------|
+| Command 🕹️ | Units don't auto-attack; a click makes ALL units strike the aim point (`commandClick`). The Knight instead **holds a persistent AoE post** at the last click (`run.knightCmd`, `commandKnightTick`), relocating on the next click. |
+| Trapmaster 🪤 | Clicking places a trap (`TRAP_DEFS`, round-robin through equipped units via `run.trapIdx`); `updateTraps` ticks aura traps and triggers one-shot traps. |
+| Spellbook 📖 | Auto-attacks off; each equipped unit is an ability (`SPELLS`) cast from `#spellBar` buttons with per-slot cooldowns (`run.spellCd`, `castSpell`). |
+| Leader 🫡 | Only slot 0 attacks; slots 1+ add on-hit mods via `leaderMods()`/`applyLeaderMods` (burn/slow/splash/lifesteal/dmg/targeting). |
+| Bounty 🎯 | `startWave` marks a random spawn as the bounty (👑); killing it → `grantBountyReward` (coins/heal/`bonusDmgT`/`bonusSpdT`); reaching the base = 2× hit / lost bonus. |
+| Overwatch 🔭 | Units charge (`run.charge`, bars under defenders); a click releases all charged units at ×2.5 damage (`overwatchRelease`). |
+| Chain Reaction 💥 | `killEnemy` explodes for 25% of maxHP to nearby foes; all direct damage ×0.8 (`globalAllDmgMul`/`clickDamage`). |
+| No Wall 💔 | `run.lives`/`maxLives` instead of HP; base-reach costs a life; `healBase` converts healing into lives via `run.healPool`. |
+
+Damage/speed multipliers funnel through `globalAllDmgMul()` (chain cut, bounty
+boost, overcharge) so modes compose with buffs/talents.
+
 Challenge fields mirror the buff modifiers, plus `enemyHpMul`,
 `spawnRateMul` (<1 = faster), `noClick` (flag), and `bossChoices` (count).
 

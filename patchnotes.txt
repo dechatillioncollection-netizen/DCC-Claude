@@ -26,6 +26,26 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.0.0 — MAJOR — 2026-07-02 14:04 SAST
+  Added — eight new Run Challenge modes (behavioural, not just modifiers):
+    - Command Mode: units don't auto-attack; click to command ALL units to
+      strike the aim point. The Knight holds a persistent AoE at the last
+      click and relocates on the next click.
+    - Trapmaster: click to place traps (one per equipped unit type, cycling);
+      traps deal damage/slow/burn/heal and expire or trigger once.
+    - Spellbook Mode: each equipped unit becomes an active ability with its
+      own cooldown, cast from a button bar under the battlefield.
+    - Leader Mode: only slot 1 attacks; the other slots add on-hit support
+      mods (burn/slow/splash/lifesteal/damage/targeting). Loadout order matters.
+    - Bounty Hunt: each wave marks a 👑 enemy — kill it for a wave bonus
+      (coins/heal/damage/attack-speed) before it reaches the base.
+    - Overwatch: units charge a powerful shot (charge bars); click to release
+      every charged unit as a strong volley.
+    - Chain Reaction: enemies explode on death, hurting nearby foes; direct
+      damage is 20% lower to reward clustering.
+    - No Wall: no base HP — limited lives; each enemy that reaches the base
+      costs one, and healing slowly restores lives.
+
 v7.0.1 — HOTFIX — 2026-07-02 13:35 SAST
   Changed:
     - The Upgrade screen now always opens on the Loadout tab (instead of

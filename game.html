@@ -224,6 +224,17 @@ button.danger { border-color: var(--bad); color: var(--bad); }
 .owned-chip { font-weight:700; color:var(--accent-2); background:rgba(255,202,40,.14); border:1px solid rgba(255,202,40,.35);
   border-radius:999px; padding:2px 10px; font-size:12px; }
 
+/* Spellbook Mode: ability button bar under the battlefield */
+#spellBar { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.spell-btn { position:relative; flex:1 1 0; min-width:120px; text-align:center; font-weight:700; padding:10px 8px;
+  border-radius:10px; background:var(--panel-2); border:1px solid var(--accent); color:var(--text); overflow:hidden; }
+.spell-btn:hover:not(:disabled) { background:#2c3550; }
+.spell-btn:disabled { opacity:.8; cursor:progress; border-color:var(--border); }
+.spell-btn .sp-name { font-size:13px; }
+.spell-btn .sp-sub { font-size:10px; color:var(--muted); font-weight:600; }
+.spell-btn .sp-cd { position:absolute; left:0; bottom:0; height:100%; background:rgba(79,195,247,.16); z-index:0; transition:width .1s linear; }
+.spell-btn > * { position:relative; z-index:1; }
+
 #log { font-size:11px; color:var(--muted); background:var(--panel-2); border:1px solid var(--border);
   border-radius:8px; padding:6px 8px; margin-top:10px; height:64px; overflow-y:auto; }
 
@@ -881,7 +892,9 @@ button.danger { background: rgba(239,83,80,.08); }
       <!-- Live damage meter: who is dealing the most damage this run -->
       <div id="dmgMeter"><div class="dm-title">Damage Meter</div><div id="dmRows"></div></div>
     </div>
-    <div class="combat-tip">🎯 <span><b>Click the battlefield</b> to fire. Your equipped defenders attack automatically. The fortress health UI is now separate from the castle itself, while the wall visibly breaks and repairs with damage.</span></div>
+    <!-- Spellbook Mode: one ability button per equipped unit (hidden otherwise) -->
+    <div id="spellBar" style="display:none"></div>
+    <div class="combat-tip" id="combatTip">🎯 <span><b>Click the battlefield</b> to fire. Your equipped defenders attack automatically. The fortress health UI is now separate from the castle itself, while the wall visibly breaks and repairs with damage.</span></div>
   </section>
 
   <!-- ============================================================
@@ -1180,7 +1193,7 @@ function setState(s) {
   if (s === "CHALLENGES") renderChallenges();
   if (s === "SETTINGS") renderSettings();
   if (s === "COMBAT" || s === "DEAD") refreshCombatBar();
-  if (s === "COMBAT") renderDamageMeter();
+  if (s === "COMBAT") { renderDamageMeter(); renderSpellBar(); }
 }
 
 /* ============================================================
@@ -1218,6 +1231,14 @@ function freshRun() {
     challenge: null, challengeId: null,
     dmg: {},            // damage meter: { source -> total damage this run }
     meterTimer: 0,      // throttles the meter's DOM refresh
+    // ---- Behavioural-mode state ----
+    traps: [],          // Trapmaster: placed traps
+    charge: {},         // Overwatch: per-slot charge (seconds)
+    spellCd: {},        // Spellbook: per-slot ability cooldown remaining
+    lives: 0, maxLives: 0, healPool: 0,   // No Wall
+    bounty: null, bountyIdx: -1, spawnIndex: 0,   // Bounty Hunt
+    bonusDmgT: 0, bonusSpdT: 0, overchargeT: 0,   // temporary wave/ability boosts
+    knightCmd: null, knightCmdTimer: 0, trapIdx: 0,  // Command Mode knight post
   };
 }
 // Record damage to the meter, keyed by source ("click" or a unit id).
@@ -1548,9 +1569,22 @@ const CHALLENGES = {
   fragile: { id:"fragile", icon:"🥚",  name:"Fragile Base", desc:"Base HP is halved, but all damage is +50%.", baseHpMul:0.5, allDmgMul:1.5 },
   noclick: { id:"noclick", icon:"🚫",  name:"No-Click Run", desc:"Clicking deals no damage, but units attack 40% faster.", noClick:true, atkSpeedAdd:0.4 },
   greedy:  { id:"greedy",  icon:"🤑",  name:"Greedy Run",   desc:"Coin rewards doubled, but base takes +50% damage.", coinMul:2, dmgTakenMul:1.5 },
+  // ---- Behavioural modes (each changes the core loop; see chMode() hooks) ----
+  command:   { id:"command",   icon:"🕹️", name:"Command Mode",   desc:"Units don't auto-attack. Click to command ALL units to strike where you aim. +30% coins.", mode:"command", coinMul:1.3 },
+  trapmaster:{ id:"trapmaster",icon:"🪤",  name:"Trapmaster",     desc:"Units don't attack. Click to place traps based on your units. +40% coins.", mode:"trapmaster", coinMul:1.4 },
+  spellbook: { id:"spellbook", icon:"📖",  name:"Spellbook Mode", desc:"Each equipped unit becomes an active ability with its own cooldown. +30% coins.", mode:"spellbook", coinMul:1.3 },
+  leader:    { id:"leader",    icon:"🫡",  name:"Leader Mode",    desc:"Only slot 1 attacks; the rest become support modifiers for the leader. Order matters! +40% damage.", mode:"leader", allDmgMul:1.4 },
+  bounty:    { id:"bounty",    icon:"🎯",  name:"Bounty Hunt",    desc:"Each wave marks a bounty enemy — kill it before it reaches the base for a wave bonus. +25% coins.", mode:"bounty", coinMul:1.25 },
+  overwatch: { id:"overwatch", icon:"🔭",  name:"Overwatch",      desc:"Units slowly charge a powerful shot. Click to release a volley of charged units.", mode:"overwatch" },
+  chain:     { id:"chain",     icon:"💥",  name:"Chain Reaction", desc:"Enemies explode on death, hurting nearby foes; your direct damage is 20% lower. +20% coins.", mode:"chain", coinMul:1.2 },
+  nowall:    { id:"nowall",    icon:"💔",  name:"No Wall",        desc:"No base HP — you have limited lives; each enemy that reaches the base costs one. +50% coins.", mode:"nowall", coinMul:1.5 },
 };
 const CHALLENGE_IDS = Object.keys(CHALLENGES);
 let selectedChallenge = null;   // id chosen on the Challenges screen (null = none)
+// The active behavioural mode (null for none / plain modifier challenges).
+function chMode() { return (run && run.challenge && run.challenge.mode) || null; }
+// True while unit auto-attacks are replaced by a click/ability-driven mode.
+function autoAttacksOff() { const m = chMode(); return m === "command" || m === "trapmaster" || m === "spellbook" || m === "overwatch"; }
 // Read a challenge modifier from the active run's challenge.
 function chMul(field)  { return (run && run.challenge && run.challenge[field] != null) ? run.challenge[field] : 1; }
 function chAdd(field)  { return (run && run.challenge && run.challenge[field] != null) ? run.challenge[field] : 0; }
@@ -1641,7 +1675,17 @@ function computeBaseMaxHP() {
 function clickDamage() {
   let d = 1 + talentEffect("click_dmg");
   d *= buffProd("clickMul");        // Power Clicks ×2 / Piercing Focus ×2 / Overclock ×3 …
+  if (chMode() === "chain") d *= 0.8;   // Chain Reaction: slightly lower direct damage
   return d;
+}
+// Shared "all unit damage" multiplier (talents + buffs + challenge + engineer,
+// plus Chain Reaction's damage cut and Bounty's temporary boost).
+function globalAllDmgMul() {
+  let m = (1 + talentEffect("all_dmg")) * buffProd("allDmgMul") * chMul("allDmgMul") * engineerBuffMul();
+  if (chMode() === "chain") m *= 0.8;
+  if (run && run.bonusDmgT > 0) m *= 1.4;       // Bounty reward: extra damage
+  if (run && run.overchargeT > 0) m *= 1.6;     // Spellbook: Engineer Overcharge
+  return m;
 }
 
 /* ---- Run lifecycle ---- */
@@ -1653,6 +1697,7 @@ function startRun() {
   run.challenge = selectedChallenge ? CHALLENGES[selectedChallenge] : null;
   run.baseMaxHP = computeBaseMaxHP();
   run.baseHP = run.baseMaxHP;
+  if (chMode() === "nowall") { run.maxLives = 12; run.lives = 12; }   // No Wall: lives instead of HP
   unitTimers = {};
   startWave(1);
   setState("COMBAT");
@@ -1663,6 +1708,9 @@ function startWave(n) {
   run.spawnQueue = buildWave(n);
   run.spawnTimer = 0;
   run.waveActive = true;
+  run.spawnIndex = 0; run.bounty = null;
+  // Bounty Hunt: mark a random enemy in this wave's spawn order as the bounty.
+  run.bountyIdx = (chMode() === "bounty" && run.spawnQueue.length) ? Math.floor(Math.random() * run.spawnQueue.length) : -1;
   log("Wave " + n + (n % 5 === 0 ? " — BOSS incoming!" : "") + " (" + run.spawnQueue.length + " enemies)");
   refreshCombatBar();
 }
@@ -1713,6 +1761,10 @@ function killEnemy(e) {
   // Vampiric Walls: heal a fraction of base max HP on each kill.
   const ls = buffSum("lifesteal");
   if (ls > 0) healBase(run.baseMaxHP * ls);
+  // Bounty Hunt: killing the marked enemy grants a temporary wave bonus.
+  if (e.bounty) { run.bounty = null; grantBountyReward(e); }
+  // Chain Reaction: enemies explode on death, hurting nearby foes.
+  if (chMode() === "chain") { boom(e.x, e.y, 90, DMG.cannon, "burst"); splashDamage(e.x, e.y, 90, e.maxHP * 0.25, { type: "cannon", src: "chain" }); }
   if (e.boss) onBossKilled();
 }
 // Area damage. opts is passed straight through to damageEnemy so splash
@@ -1786,10 +1838,10 @@ function knightCount() { return Math.min(5, 2 + talentRank("t_knight_block")); }
 function knightRadius() { return unitStat("knight", "guard") + unitTalentBonus("knight", "guard").add; }
 function knightPositions() { return KNIGHT_POSTS.slice(0, knightCount()).map(p => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H })); }
 
-function unitAttack(id, slot) {
-  const allDmgMul = (1 + talentEffect("all_dmg")) * buffProd("allDmgMul") * chMul("allDmgMul") * engineerBuffMul();
+function unitAttack(id, slot, mods) {
+  const allDmgMul = globalAllDmgMul();
   const tb = unitTalentBonus.bind(null, id);
-  function dmgFor() { return unitStat(id, "dmg") * tb("dmg").mul * allDmgMul; }
+  function dmgFor() { return unitStat(id, "dmg") * tb("dmg").mul * allDmgMul * (mods ? mods.dmgMul : 1); }
   // Attacks originate from this copy's own slot position (so duplicates each
   // fire from their own spot on the wall).
   const post = unitPost(slot);
@@ -1798,19 +1850,22 @@ function unitAttack(id, slot) {
     case "archer": {
       // Quick green single-target projectiles. Multishot adds extra shots.
       const shots = 1 + Math.floor(buffSum("extraShots"));
-      for (let s = 0; s < shots; s++) { const e = nearestEnemyToBase(); if (!e) break; shoot(e.x, e.y, DMG.archer, "arrow", post.x, post.y); damageEnemy(e, dmgFor(), { type: "archer", src: "archer" }); }
+      for (let s = 0; s < shots; s++) {
+        const e = (mods && mods.fastTarget && nearestEnemyTo(BASE.x, BASE.y, en => en.fast || en.flying)) || nearestEnemyToBase();
+        if (!e) break; shoot(e.x, e.y, DMG.archer, "arrow", post.x, post.y); const d = dmgFor(); damageEnemy(e, d, { type: "archer", src: "archer" }); applyLeaderMods(e, mods, d);
+      }
       break;
     }
     case "ranger": {
       // Like the archer but hunts fast/flying foes; also a quick green shot.
       let e = nearestEnemyTo(BASE.x, BASE.y, en => en.fast || en.flying) || nearestEnemyToBase();
-      if (e) { shoot(e.x, e.y, DMG.archer, "arrow", post.x, post.y); damageEnemy(e, dmgFor() * ((e.fast || e.flying) ? 1.5 : 1), { type: "archer", src: "ranger" }); }
+      if (e) { shoot(e.x, e.y, DMG.archer, "arrow", post.x, post.y); const d = dmgFor() * ((e.fast || e.flying) ? 1.5 : 1); damageEnemy(e, d, { type: "archer", src: "ranger" }); applyLeaderMods(e, mods, d); }
       break;
     }
     case "assassin": {
       const e = strongestEnemy();
       if (e) { const strong = e.boss || e.type === "tank"; const mul = unitStat(id,"critMul") + tb("crit").add;
-        shoot(e.x, e.y, "#ff8a80", "arrow", post.x, post.y); damageEnemy(e, dmgFor() * (strong ? mul : 1), { type: "physical", crit: strong, src: "assassin" }); }
+        shoot(e.x, e.y, "#ff8a80", "arrow", post.x, post.y); const d = dmgFor() * (strong ? mul : 1); damageEnemy(e, d, { type: "physical", crit: strong, src: "assassin" }); applyLeaderMods(e, mods, d); }
       break;
     }
     case "mage": {
@@ -1863,6 +1918,12 @@ function unitAttack(id, slot) {
   }
 }
 function healBase(amt) {
+  // No Wall mode: healing charges a pool that slowly restores lives.
+  if (chMode() === "nowall") {
+    run.healPool += amt;
+    while (run.healPool >= 40 && run.lives < run.maxLives) { run.healPool -= 40; run.lives++; spawnText(BASE.x + rand(-40,40), BASE.y - 30, "+1 ❤", DMG.heal, { heal: true }); }
+    return;
+  }
   if (run.baseHP < run.baseMaxHP) { run.baseHP = Math.min(run.baseMaxHP, run.baseHP + amt); spawnText(BASE.x + rand(-40,40), BASE.y - 30, "+" + Math.round(amt), DMG.heal, { heal: true }); }
 }
 function healBaseSilent(amt) { if (run.baseHP < run.baseMaxHP) run.baseHP = Math.min(run.baseMaxHP, run.baseHP + amt); }
@@ -1872,7 +1933,181 @@ function attackSpeedMul(id) {
   m += chAdd("atkSpeedAdd");     // No-Click Run challenge
   if (id === "archer") m += talentEffect("t_archer_spd");
   if (id === "priest") m += buffSum("priestSpeedAdd");   // Blessing
+  if (run && run.bonusSpdT > 0) m += 0.5;   // Bounty reward: attack speed
   return m;
+}
+
+/* ============================================================
+   CHALLENGE-MODE MECHANICS
+   Leader supports, click-to-aim attacks (Command/Overwatch),
+   Trapmaster traps, Spellbook abilities, Bounty rewards.
+   ============================================================ */
+// --- Leader Mode: slots 1+ become on-hit modifiers for the slot-0 leader ---
+function leaderMods() {
+  const m = { dmgMul: 1, burn: 0, slow: 0, splash: 0, lifesteal: 0, fastTarget: false };
+  for (let i = 1; i < persist.equipped.length; i++) {
+    switch (persist.equipped[i]) {
+      case "firewizard": m.burn += unitStat("firewizard", "burn"); break;
+      case "icewizard":  m.slow = Math.min(0.8, m.slow + 0.3); break;
+      case "mage":       m.splash = Math.max(m.splash, 80); break;
+      case "cannon":     m.splash = Math.max(m.splash, 120); m.dmgMul *= 1.15; break;
+      case "priest":     m.lifesteal += 0.02; break;
+      case "engineer":   m.dmgMul *= 1.25; break;
+      case "knight":     m.slow = Math.min(0.8, m.slow + 0.2); break;
+      case "assassin":   m.dmgMul *= 1.6; break;
+      case "ranger":     m.fastTarget = true; break;
+    }
+  }
+  return m;
+}
+function applyLeaderMods(e, mods, dmg) {
+  if (!mods || !e || e.hp <= 0) return;
+  if (mods.burn > 0)      applyBurn(e, mods.burn * globalAllDmgMul());
+  if (mods.slow > 0)      applySlow(e, mods.slow, 1.5);
+  if (mods.splash > 0)    splashDamage(e.x, e.y, mods.splash, dmg * 0.5, { type: "physical", src: "leader" });
+  if (mods.lifesteal > 0) healBase((run.baseMaxHP || 100) * mods.lifesteal);
+}
+
+// --- Command / Overwatch: a unit strikes toward a clicked point (tx,ty) ---
+function unitAttackAt(id, slot, tx, ty, dmgMul) {
+  const tb = unitTalentBonus.bind(null, id);
+  const dmg = unitStat(id, "dmg") * tb("dmg").mul * globalAllDmgMul() * (dmgMul || 1);
+  const post = unitPost(slot);
+  const nearAim = (r) => run.enemies.filter(e => Math.hypot(e.x - tx, e.y - ty) <= r + e.r);
+  switch (id) {
+    case "archer": case "ranger": {
+      const e = nearestEnemyTo(tx, ty);
+      shoot(tx, ty, DMG.archer, "arrow", post.x, post.y);
+      if (e && Math.hypot(e.x - tx, e.y - ty) < 220) damageEnemy(e, dmg * (id === "ranger" && (e.fast || e.flying) ? 1.5 : 1), { type: "archer", src: id });
+      break;
+    }
+    case "assassin": {
+      let best = null, bhp = -1; for (const e of nearAim(240)) if (e.hp > bhp) { bhp = e.hp; best = e; }
+      shoot(tx, ty, "#ff8a80", "arrow", post.x, post.y);
+      if (best) { const strong = best.boss || best.type === "tank"; damageEnemy(best, dmg * (strong ? (unitStat(id, "critMul") + tb("crit").add) : 1), { type: "physical", crit: strong, src: id }); }
+      break;
+    }
+    case "mage": { const r = (unitStat(id, "splash") + tb("splash").add) * buffProd("mageSplashMul"); shoot(tx, ty, DMG.mage, "orb", post.x, post.y); boom(tx, ty, r, DMG.mage, "burst"); splashDamage(tx, ty, r, dmg, { type: "mage", src: id }); break; }
+    case "cannon": { const r = unitStat(id, "splash") + tb("splash").add; shoot(tx, ty, DMG.cannon, "orb", post.x, post.y); boom(tx, ty, r, DMG.cannon, "burst"); boom(tx, ty, r, DMG.cannon, "ring"); splashDamage(tx, ty, r, dmg, { type: "cannon", src: id }); break; }
+    case "icewizard": { const r = unitStat(id, "splash"); const slow = Math.min(0.9, unitStat(id, "slow") + (unitTalentBonus(id, "slow").mul - 1) + buffSum("slowAdd")); shoot(tx, ty, DMG.ice, "orb", post.x, post.y); boom(tx, ty, r, DMG.ice, "ring"); for (const t of nearAim(r)) { damageEnemy(t, dmg, { type: "ice", src: id }); applySlow(t, slow, unitStat(id, "slowDur")); } break; }
+    case "firewizard": { const r = 90; const burn = unitStat(id, "burn") * tb("burn").mul * globalAllDmgMul(); shoot(tx, ty, DMG.fire, "orb", post.x, post.y); boom(tx, ty, r, DMG.fire, "burst"); for (const t of nearAim(r)) { damageEnemy(t, dmg, { type: "fire", src: id }); applyBurn(t, burn); } break; }
+    case "knight": { const r = knightRadius(); const slow = unitStat(id, "slow") * (1 + talentEffect("t_knight_block")); boom(tx, ty, r, "#ef5353", "ring"); for (const t of nearAim(r)) { damageEnemy(t, dmg, { type: "physical", src: id }); applySlow(t, slow, 0.8); } break; }
+    case "priest": { healBase(unitStat(id, "heal") * (1 + talentEffect("t_priest_heal")) * buffProd("priestHealMul") * 4); break; }
+    case "engineer": { healBase(unitStat(id, "repair") * (1 + talentEffect("t_eng_buff")) * 4); break; }
+  }
+}
+function commandClick(tx, ty) {
+  let movedKnight = false;
+  for (let i = 0; i < persist.equipped.length; i++) {
+    const id = persist.equipped[i];
+    if (id === "knight") { movedKnight = true; continue; }   // knight holds a post instead of firing
+    unitAttackAt(id, i, tx, ty, 1);
+  }
+  // Command Mode: the knight stays where you click and holds an AoE there
+  // until you click again (which relocates it). No flashing, no infinite stacks.
+  if (movedKnight) { run.knightCmd = { x: tx, y: ty }; boom(tx, ty, knightRadius(), "#ef5353", "ring"); }
+}
+// Persistent Command-Mode knight AoE: damages + slows on the knight's cadence.
+function commandKnightTick(dt) {
+  if (!run.knightCmd) return;
+  const nk = persist.equipped.filter(x => x === "knight").length;
+  if (!nk) { run.knightCmd = null; return; }
+  run.knightCmdTimer -= dt;
+  if (run.knightCmdTimer > 0) return;
+  run.knightCmdTimer = (unitStat("knight", "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) / attackSpeedMul("knight");
+  const r = knightRadius(), slow = unitStat("knight", "slow") * (1 + talentEffect("t_knight_block"));
+  const dmg = unitStat("knight", "dmg") * unitTalentBonus("knight", "dmg").mul * globalAllDmgMul() * nk;
+  for (const t of run.enemies) if (Math.hypot(t.x - run.knightCmd.x, t.y - run.knightCmd.y) <= r + t.r) { damageEnemy(t, dmg, { type: "physical", src: "knight" }); applySlow(t, slow, 0.9); }
+}
+function overwatchChargeTime(id) { return (unitStat(id, "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) * 4; }
+function overwatchRelease(tx, ty) {
+  let fired = 0;
+  for (let i = 0; i < persist.equipped.length; i++) { const full = overwatchChargeTime(persist.equipped[i]); if ((run.charge[i] || 0) >= full) { unitAttackAt(persist.equipped[i], i, tx, ty, 2.5); run.charge[i] = 0; fired++; } }
+  if (!fired) spawnText(tx, ty, "not charged", DMG.enemy, {});
+}
+
+// --- Trapmaster: clicking places a trap based on the next equipped unit ---
+const TRAP_DEFS = {
+  archer:    { name:"Spike Trap",     icon:"🔺", color:"#7cff8a", r:70,  life:14, once:true, dmgMul:6, type:"physical" },
+  ranger:    { name:"Snare Trap",     icon:"🎯", color:"#7cff8a", r:75,  life:12, tick:0.5, slow:0.5, dmgMul:2, type:"archer" },
+  mage:      { name:"Arcane Burst",   icon:"🔮", color:"#c08bff", r:85,  life:16, once:true, dmgMul:5, type:"mage" },
+  cannon:    { name:"Mine",           icon:"💣", color:"#ffc24a", r:95,  life:20, once:true, dmgMul:10, type:"cannon" },
+  firewizard:{ name:"Burning Ground", icon:"🔥", color:"#ff7a33", r:80,  life:8,  tick:0.5, burn:true, dmgMul:2, type:"fire" },
+  icewizard: { name:"Frost Trap",     icon:"❄️", color:"#a6e6ff", r:80,  life:10, tick:0.4, slow:0.6, dmgMul:1, type:"ice" },
+  knight:    { name:"Guard Zone",     icon:"🛡️", color:"#8cb4ff", r:110, life:10, tick:0.4, slow:0.5, dmgMul:1.5, type:"physical" },
+  assassin:  { name:"Ambush",         icon:"🗡️", color:"#ff8a80", r:70,  life:16, once:true, dmgMul:8, crit:true, type:"physical" },
+  priest:    { name:"Healing Zone",   icon:"✨", color:"#5dffa0", r:90,  life:12, tick:0.6, heal:8 },
+  engineer:  { name:"Repair Station", icon:"🔧", color:"#ffd76b", r:100, life:16, tick:1.0, heal:12 },
+};
+function placeTrap(mx, my) {
+  if (!persist.equipped.length) return;
+  run.trapIdx = run.trapIdx || 0;
+  const id = persist.equipped[run.trapIdx % persist.equipped.length];
+  run.trapIdx++;
+  const def = TRAP_DEFS[id]; if (!def) return;
+  const dmg = def.dmgMul ? unitStat(id, "dmg") * def.dmgMul * globalAllDmgMul() : 0;
+  run.traps.push({ id, x: mx, y: my, r: def.r, life: def.life, t: 0, tickT: 0, def, dmg });
+  boom(mx, my, def.r, def.color, "ring");
+  log("Placed " + def.name + ".");
+}
+function updateTraps(dt) {
+  for (let i = run.traps.length - 1; i >= 0; i--) {
+    const tr = run.traps[i], d = tr.def; tr.t += dt;
+    let remove = tr.t >= tr.life;
+    if (d.once) {
+      const hitList = run.enemies.filter(e => Math.hypot(e.x - tr.x, e.y - tr.y) <= tr.r + e.r);
+      if (hitList.length) {
+        boom(tr.x, tr.y, tr.r, d.color, "burst");
+        splashDamage(tr.x, tr.y, tr.r, tr.dmg, { type: d.type || "physical", src: tr.id, crit: !!d.crit });
+        if (d.burn) for (const e of hitList) applyBurn(e, unitStat(tr.id, "burn") * globalAllDmgMul());
+        remove = true;
+      }
+    } else {
+      tr.tickT -= dt;
+      if (tr.tickT <= 0) {
+        tr.tickT = d.tick;
+        if (d.heal) healBase(d.heal);
+        for (const e of run.enemies) if (Math.hypot(e.x - tr.x, e.y - tr.y) <= tr.r + e.r) {
+          if (tr.dmg > 0) damageEnemy(e, tr.dmg * d.tick, { type: d.type || "physical", src: tr.id });
+          if (d.slow) applySlow(e, d.slow, 1);
+          if (d.burn) applyBurn(e, unitStat(tr.id, "burn") * globalAllDmgMul());
+        }
+      }
+    }
+    if (remove) run.traps.splice(i, 1);
+  }
+}
+
+// --- Spellbook: each equipped unit is an active ability with a cooldown ---
+function spellDmg(id, mul) { return unitStat(id, "dmg") * mul * globalAllDmgMul(); }
+function frontEnemies(frac) { return run.enemies.filter(e => e.y >= CANVAS_H * (1 - frac) && e.y >= ENGAGE_TOP); }
+const SPELLS = {
+  archer:    { name:"Arrow Rain",   cd:6,  cast:() => { for (const e of run.enemies.slice()) if (e.y >= ENGAGE_TOP) damageEnemy(e, spellDmg("archer", 4), { type:"archer", src:"archer" }); for (let i=0;i<14;i++) run.projectiles.push({ x: rand(0,CANVAS_W), y:0, tx: rand(0,CANVAS_W), ty: rand(200,BASE_LINE), color: DMG.archer, style:"arrow", life:0.25, t:0 }); } },
+  ranger:    { name:"Focus Shot",   cd:5,  cast:() => { const e = nearestEnemyTo(BASE.x, BASE.y, en => en.fast || en.flying) || strongestEnemy(); if (e) { shoot(e.x, e.y, DMG.archer, "arrow"); damageEnemy(e, spellDmg("ranger", 9), { type:"archer", src:"ranger" }); } } },
+  mage:      { name:"Arcane Blast", cd:7,  cast:() => { const e = nearestEnemyToBase(); const x = e?e.x:BASE.x, y = e?e.y:400; boom(x,y,170,DMG.mage,"burst"); splashDamage(x,y,170, spellDmg("mage",5), { type:"mage", src:"mage" }); } },
+  cannon:    { name:"Bombardment",  cd:9,  cast:() => { const list = frontEnemies(1).sort((a,b)=>b.y-a.y).slice(0,3); const spots = list.length?list:[{x:BASE.x,y:400}]; for (const e of spots) { boom(e.x,e.y,130,DMG.cannon,"burst"); splashDamage(e.x,e.y,130, spellDmg("cannon",3), { type:"cannon", src:"cannon" }); } } },
+  firewizard:{ name:"Flame Wave",   cd:8,  cast:() => { for (const e of run.enemies.slice()) { applyBurn(e, unitStat("firewizard","burn")*globalAllDmgMul()*2, 2); damageEnemy(e, spellDmg("firewizard",3), { type:"fire", src:"firewizard" }); } } },
+  icewizard: { name:"Freeze Field", cd:8,  cast:() => { for (const e of run.enemies.slice()) { damageEnemy(e, spellDmg("icewizard",2), { type:"ice", src:"icewizard" }); applySlow(e, 0.7, 4); } } },
+  knight:    { name:"Shield Slam",  cd:7,  cast:() => { for (const e of frontEnemies(0.45)) { damageEnemy(e, spellDmg("knight",5), { type:"physical", src:"knight" }); applySlow(e, 0.6, 2); } } },
+  priest:    { name:"Emergency Heal",cd:10, cast:() => { healBase((run.baseMaxHP || 100) * 0.35); } },
+  engineer:  { name:"Overcharge",   cd:12, cast:() => { run.overchargeT = 6; } },
+  assassin:  { name:"Execute Strike",cd:6, cast:() => { const e = strongestEnemy(); if (e) { shoot(e.x, e.y, "#ff8a80", "arrow"); damageEnemy(e, spellDmg("assassin",10) * 3, { type:"physical", crit:true, src:"assassin" }); } } },
+};
+function castSpell(slot) {
+  if (chMode() !== "spellbook" || GS !== "COMBAT") return;
+  const id = persist.equipped[slot]; const sp = SPELLS[id]; if (!sp) return;
+  if ((run.spellCd[slot] || 0) > 0) return;
+  sp.cast(); run.spellCd[slot] = sp.cd;
+  renderSpellBar();
+}
+
+// --- Bounty Hunt: reward for killing the marked enemy ---
+function grantBountyReward(e) {
+  const kind = choice(["coin", "heal", "dmg", "speed"]);
+  if (kind === "coin")      { const c = 40 + run.wave * 12; persist.coins += c; spawnText(e.x, e.y - 20, "BOUNTY +" + c + "🪙", DMG.crit, { crit:true }); }
+  else if (kind === "heal") { healBase((run.baseMaxHP || 100) * 0.25); spawnText(e.x, e.y - 20, "BOUNTY: repaired!", DMG.heal, { crit:true }); }
+  else if (kind === "dmg")  { run.bonusDmgT = 8; spawnText(e.x, e.y - 20, "BOUNTY: +40% damage!", DMG.crit, { crit:true }); }
+  else                      { run.bonusSpdT = 8; spawnText(e.x, e.y - 20, "BOUNTY: +attack speed!", DMG.crit, { crit:true }); }
 }
 
 /* ---- Visual flourishes ----
@@ -1908,7 +2143,15 @@ function update(dt) {
   // Spawn
   if (run.spawnQueue.length > 0) {
     run.spawnTimer -= dt;
-    if (run.spawnTimer <= 0) { const type = run.spawnQueue.shift(); run.enemies.push(spawnEnemy(type, run.wave)); run.spawnTimer = (type === "boss" ? 0.2 : rand(0.45, 0.85)) * chMul("spawnRateMul"); } // Swarm Mode spawns faster
+    if (run.spawnTimer <= 0) {
+      const type = run.spawnQueue.shift();
+      const ne = spawnEnemy(type, run.wave);
+      // Bounty Hunt: flag the marked enemy in the spawn order.
+      if (chMode() === "bounty" && run.spawnIndex === run.bountyIdx) { ne.bounty = true; ne.hp *= 1.4; ne.maxHP = ne.hp; run.bounty = ne; }
+      run.spawnIndex++;
+      run.enemies.push(ne);
+      run.spawnTimer = (type === "boss" ? 0.2 : rand(0.45, 0.85)) * chMul("spawnRateMul"); // Swarm Mode spawns faster
+    }
   }
   // Move + resolve
   for (const e of run.enemies.slice()) {
@@ -1926,20 +2169,48 @@ function update(dt) {
     if (e.flash > 0) e.flash -= dt;
     e.y += spd * dt;
     if (e.y >= BASE_LINE) {
-      let dmg = e.dmg * (1 - talentEffect("base_armor")) * buffProd("dmgTakenMul") * chMul("dmgTakenMul"); // armour, buffs (Bulwark/Blood Money/…), challenges
-      run.baseHP -= dmg;
-      spawnText(BASE.x + rand(-50,50), BASE.y - 20, "-" + Math.round(dmg), DMG.enemy, {});
       const idx = run.enemies.indexOf(e); if (idx > -1) run.enemies.splice(idx, 1);
-      if (run.baseHP <= 0) { run.baseHP = 0; endRun(); return; }
+      if (e.bounty) run.bounty = null;   // bounty escaped — no reward
+      if (chMode() === "nowall") {
+        // No Wall: lose a life (bounty costs two) instead of HP.
+        const loss = e.bounty ? 2 : 1;
+        run.lives -= loss;
+        spawnText(BASE.x + rand(-50,50), BASE.y - 20, "-" + loss + " ❤", DMG.enemy, {});
+        if (run.lives <= 0) { run.lives = 0; endRun(); return; }
+      } else {
+        let dmg = e.dmg * (1 - talentEffect("base_armor")) * buffProd("dmgTakenMul") * chMul("dmgTakenMul"); // armour, buffs, challenges
+        if (e.bounty) dmg *= 2;   // Bounty reaching the base hits harder
+        run.baseHP -= dmg;
+        spawnText(BASE.x + rand(-50,50), BASE.y - 20, "-" + Math.round(dmg), DMG.enemy, {});
+        if (run.baseHP <= 0) { run.baseHP = 0; endRun(); return; }
+      }
     }
   }
-  // Equipped units attack (only equipped fight)
-  for (let i = 0; i < persist.equipped.length; i++) {
-    const id = persist.equipped[i]; if (!id) continue;
-    const cd = (unitStat(id, "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) / attackSpeedMul(id);
-    unitTimers[i] = (unitTimers[i] || rand(0, cd)) - dt;
-    if (unitTimers[i] <= 0) { unitTimers[i] = cd; unitAttack(id, i); if (GS !== "COMBAT") return; }
+  // Equipped units attack. Some modes replace auto-attacks with click/ability
+  // input; Leader mode lets only slot 0 attack (with support mods); Overwatch
+  // charges instead of firing.
+  const mode = chMode();
+  const lMods = mode === "leader" ? leaderMods() : null;
+  if (mode === "overwatch") {
+    for (let i = 0; i < persist.equipped.length; i++) { const id = persist.equipped[i]; if (!id) continue; run.charge[i] = Math.min(overwatchChargeTime(id), (run.charge[i] || 0) + dt); }
+  } else if (!autoAttacksOff()) {
+    for (let i = 0; i < persist.equipped.length; i++) {
+      const id = persist.equipped[i]; if (!id) continue;
+      if (mode === "leader" && i > 0) continue;   // supports don't attack directly
+      const cd = (unitStat(id, "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) / attackSpeedMul(id);
+      unitTimers[i] = (unitTimers[i] || rand(0, cd)) - dt;
+      if (unitTimers[i] <= 0) { unitTimers[i] = cd; unitAttack(id, i, (mode === "leader" && i === 0) ? lMods : null); if (GS !== "COMBAT") return; }
+    }
   }
+  // Trapmaster: tick placed traps.
+  if (mode === "trapmaster" && run.traps.length) updateTraps(dt);
+  // Command Mode: the commanded knight holds its post and keeps attacking.
+  if (mode === "command") commandKnightTick(dt);
+  // Decay temporary boosts and ability cooldowns.
+  if (run.bonusDmgT > 0) run.bonusDmgT -= dt;
+  if (run.bonusSpdT > 0) run.bonusSpdT -= dt;
+  if (run.overchargeT > 0) run.overchargeT -= dt;
+  if (mode === "spellbook") { let changed = false; for (let i = 0; i < persist.equipped.length; i++) { if (run.spellCd[i] > 0) { run.spellCd[i] = Math.max(0, run.spellCd[i] - dt); changed = true; } } if (changed) { run.spellUiT = (run.spellUiT || 0) - dt; if (run.spellUiT <= 0) { run.spellUiT = 0.2; renderSpellBar(); } } }
   // Regen (Berserker's curse disables all base regen this run)
   const regen = buffFlag("noRegen") ? 0 : talentEffect("base_regen") + buffSum("regenAdd");
   if (regen > 0) healBaseSilent(regen * dt);
@@ -1989,7 +2260,11 @@ function render() {
 
   if (run && run.active) {
     // ---- Knight defence zone: a clearly-visible arc in front of the wall ----
-    if (persist.equipped.includes("knight")) drawKnightZone();
+    if (persist.equipped.includes("knight") && chMode() !== "trapmaster" && chMode() !== "command" && chMode() !== "spellbook" && chMode() !== "overwatch") drawKnightZone();
+    // ---- Trapmaster: placed traps ----
+    if (run.traps.length) drawTraps();
+    // ---- Command Mode: the knight's held post ----
+    if (chMode() === "command" && run.knightCmd) drawCommandKnight();
 
     // ---- Projectiles: arrows are thin fast lines; orbs are glowing balls ----
     for (const p of run.projectiles) {
@@ -2022,6 +2297,13 @@ function render() {
       ctx.fillStyle = "#000"; ctx.fillRect(e.x-bw/2, hpY, bw, 6);
       ctx.fillStyle = e.boss ? "#ff5252" : "#66bb6a"; ctx.fillRect(e.x-bw/2, hpY, bw*hpk, 6);
       if (e.boss) { ctx.fillStyle = "#fff"; ctx.font = "bold 13px sans-serif"; ctx.textAlign = "center"; ctx.fillText("BOSS", e.x, e.y+e.r*1.35); }
+      // Bounty Hunt: pulsing gold ring + crown over the marked target.
+      if (e.bounty) {
+        const pr = spriteSize * 0.5 + 6 + Math.sin(performance.now() / 160) * 4;
+        ctx.strokeStyle = "#ffd54f"; ctx.lineWidth = 3; ctx.setLineDash([6, 5]);
+        ctx.beginPath(); ctx.arc(e.x, e.y, pr, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1;
+        ctx.font = "22px sans-serif"; ctx.textAlign = "center"; ctx.fillText("👑", e.x, hpY - 8);
+      }
       // Status effects shown as clear icons just BELOW the enemy: ❄ slowed, 🔥 burning.
       let statusIcons = "";
       if (e.slowT > 0) statusIcons += "❄";
@@ -2185,11 +2467,38 @@ function drawBase() {
 function drawDefenders() {
   ctx.font = '20px sans-serif'; ctx.textAlign = 'center';
   const n = persist.equipped.length;
+  const mode = chMode();
   for (let i = 0; i < n; i++) {
     const id = persist.equipped[i], p = defenderPos(i, n);
     ctx.fillStyle = 'rgba(12,15,23,.55)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
     if (!drawSprite(UNIT_IMAGES[id], p.x, p.y, 50, 50)) ctx.fillText(UNITS[id].emoji, p.x, p.y + 7);
+    // Overwatch: charge bar under each unit (glows gold when ready to fire).
+    if (mode === "overwatch") {
+      const full = overwatchChargeTime(id), k = clamp((run.charge[i] || 0) / full, 0, 1);
+      ctx.fillStyle = '#0009'; ctx.fillRect(p.x - 22, p.y + 26, 44, 6);
+      ctx.fillStyle = k >= 1 ? '#ffd54f' : '#4fc3f7'; ctx.fillRect(p.x - 22, p.y + 26, 44 * k, 6);
+    }
   }
+}
+// Trapmaster: draw placed traps as fading coloured zones with their icon.
+function drawTraps() {
+  ctx.textAlign = 'center';
+  for (const tr of run.traps) {
+    const k = tr.t / tr.life, d = tr.def;
+    ctx.globalAlpha = 0.16 * (1 - k * 0.4); ctx.fillStyle = d.color;
+    ctx.beginPath(); ctx.arc(tr.x, tr.y, tr.r, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = d.color; ctx.setLineDash([7, 6]); ctx.beginPath(); ctx.arc(tr.x, tr.y, tr.r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.font = '26px sans-serif'; ctx.fillText(d.icon, tr.x, tr.y + 9);
+  }
+}
+// Command Mode: the knight's held AoE post, drawn where it was last commanded.
+function drawCommandKnight() {
+  const p = run.knightCmd, r = knightRadius();
+  ctx.fillStyle = "rgba(239,83,83,0.12)"; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "rgba(255,95,95,0.6)"; ctx.lineWidth = 2; ctx.setLineDash([9, 7]); ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1;
+  ctx.fillStyle = 'rgba(12,15,23,.5)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 24, 24, 8, 0, 0, Math.PI * 2); ctx.fill();
+  if (!drawSprite(UNIT_IMAGES.knight, p.x, p.y, 56, 56)) { ctx.fillStyle = '#cdd6e6'; ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🛡️', p.x, p.y + 9); }
+  ctx.fillStyle = "rgba(255,150,150,0.92)"; ctx.font = "bold 14px sans-serif"; ctx.textAlign = "center"; ctx.fillText("GUARD", p.x, p.y + r - 10);
 }
 /* Knight field posts: each active knight projects an AoE (damages + slows).
    Drawn as a red zone with the knight sprite at its centre and an "AOE" tag. */
@@ -2227,6 +2536,12 @@ canvas.addEventListener("click", (ev) => {
   const rect = canvas.getBoundingClientRect();
   const mx = (ev.clientX - rect.left) * (CANVAS_W / rect.width);
   const my = (ev.clientY - rect.top) * (CANVAS_H / rect.height);
+
+  // Behavioural modes redirect clicking:
+  const mode = chMode();
+  if (mode === "command")   { commandClick(mx, my); return; }   // all units strike the aim point
+  if (mode === "trapmaster"){ placeTrap(mx, my); return; }       // place a trap
+  if (mode === "overwatch") { overwatchRelease(mx, my); return; } // release charged units
 
   // A shot always fires toward the clicked point (even into empty space).
   shoot(mx, my, "#ffffff", "arrow");
@@ -2312,8 +2627,9 @@ function refreshCombatBar() {
   const w = document.getElementById("cWave"); if (!w) return;
   w.textContent = run ? run.wave : 0;
   const activeHP = run && run.active;
-  const pct = activeHP ? clamp(run.baseHP / run.baseMaxHP, 0, 1) : 1;
-  document.getElementById("cHP").textContent = activeHP ? Math.ceil(run.baseHP) + "/" + run.baseMaxHP : computeBaseMaxHP();
+  const nowall = chMode() === "nowall";
+  const pct = nowall ? clamp(run.lives / run.maxLives, 0, 1) : (activeHP ? clamp(run.baseHP / run.baseMaxHP, 0, 1) : 1);
+  document.getElementById("cHP").textContent = nowall ? ("❤ " + run.lives + "/" + run.maxLives) : (activeHP ? Math.ceil(run.baseHP) + "/" + run.baseMaxHP : computeBaseMaxHP());
   const hpBar = document.getElementById("cHPBar");
   if (hpBar) {
     hpBar.style.width = Math.round(pct * 100) + "%";
@@ -2336,7 +2652,7 @@ function refreshCombatBar() {
   const fortPanel = document.getElementById("fortPanel");
   if (fortBar && fortHP && fortPct && fortStateEl && fortNote && fortPanel) {
     const state = fortressState(pct);
-    fortHP.textContent = activeHP ? Math.ceil(run.baseHP) + ' / ' + run.baseMaxHP : computeBaseMaxHP() + ' / ' + computeBaseMaxHP();
+    fortHP.textContent = nowall ? ('❤ ' + run.lives + ' / ' + run.maxLives + ' lives') : (activeHP ? Math.ceil(run.baseHP) + ' / ' + run.baseMaxHP : computeBaseMaxHP() + ' / ' + computeBaseMaxHP());
     fortPct.textContent = Math.round(pct * 100) + '%';
     fortStateEl.textContent = state.label;
     fortNote.textContent = state.note;
@@ -2346,6 +2662,42 @@ function refreshCombatBar() {
     fortPanel.classList.toggle('is-damaged', state.cls === 'warn');
     fortPanel.classList.toggle('is-critical', state.cls === 'danger');
   }
+  updateCombatTip();
+}
+// Spellbook Mode ability bar — one button per equipped unit, with cooldowns.
+function renderSpellBar() {
+  const bar = document.getElementById("spellBar"); if (!bar) return;
+  if (chMode() !== "spellbook" || !run || !run.active) { bar.style.display = "none"; bar.innerHTML = ""; return; }
+  bar.style.display = "flex";
+  bar.innerHTML = "";
+  for (let i = 0; i < persist.equipped.length; i++) {
+    const id = persist.equipped[i], sp = SPELLS[id]; if (!sp) continue;
+    const cd = run.spellCd[i] || 0, ready = cd <= 0;
+    const btn = document.createElement("button");
+    btn.className = "spell-btn"; btn.disabled = !ready;
+    const pct = ready ? 0 : Math.round((cd / sp.cd) * 100);
+    btn.innerHTML = '<span class="sp-cd" style="width:' + pct + '%"></span>' +
+      '<div class="sp-name">' + (UNITS[id].emoji || "") + " " + sp.name + '</div>' +
+      '<div class="sp-sub">' + (ready ? "READY" : cd.toFixed(1) + "s") + '</div>';
+    btn.onclick = () => castSpell(i);
+    bar.appendChild(btn);
+  }
+}
+// Battlefield hint changes to explain the active mode's controls.
+function updateCombatTip() {
+  const tip = document.getElementById("combatTip"); if (!tip) return;
+  const m = chMode();
+  const msgs = {
+    command:   "🕹️ <span><b>Command Mode:</b> click the battlefield to command ALL units to strike there. The knight holds the last spot you click.</span>",
+    trapmaster:"🪤 <span><b>Trapmaster:</b> click to place a trap — each click cycles through your equipped units' traps.</span>",
+    spellbook: "📖 <span><b>Spellbook:</b> cast your units' abilities from the buttons below; each has its own cooldown.</span>",
+    overwatch: "🔭 <span><b>Overwatch:</b> units charge up (bars below them). Click to release every charged unit toward that point.</span>",
+    leader:    "🫡 <span><b>Leader Mode:</b> only slot 1 attacks; the other slots buff the leader. Loadout order matters!</span>",
+    bounty:    "🎯 <span><b>Bounty Hunt:</b> kill the 👑 marked enemy before it reaches the base for a wave bonus.</span>",
+    chain:     "💥 <span><b>Chain Reaction:</b> enemies explode on death — line them up in clusters.</span>",
+    nowall:    "💔 <span><b>No Wall:</b> no HP — you have lives. Each enemy that reaches the base costs one.</span>",
+  };
+  tip.innerHTML = (m && msgs[m]) ? msgs[m] : '🎯 <span><b>Click the battlefield</b> to fire. Your equipped defenders attack automatically.</span>';
 }
 
 /* ---- Damage meter ---- */
