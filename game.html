@@ -1179,6 +1179,7 @@ function show(id, on) {
   if (el) el.classList.toggle("active", !!on);
 }
 function setState(s) {
+  flushSave();   // write any pending debounced save before switching screens
   GS = s;
   // Full-screen, mutually-exclusive screens:
   show("screen-menu", s === "MENU");
@@ -1213,6 +1214,10 @@ let persist = {
   lastRunDamage: null, // previous finished run's damage meter snapshot
 };
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(persist)); markLastSaved(); } catch (e) {} }
+// Coalesce rapid saves (e.g. spamming buy/equip) into one write ~0.4s later.
+let _saveTimer = null;
+function saveDebounced() { if (_saveTimer) return; _saveTimer = setTimeout(() => { _saveTimer = null; save(); }, 400); }
+function flushSave() { if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; save(); } }
 function load() {
   try { const raw = localStorage.getItem(SAVE_KEY); if (raw) persist = Object.assign(persist, JSON.parse(raw)); }
   catch (e) {}
@@ -2010,6 +2015,7 @@ function commandClick(tx, ty) {
   let movedKnight = false;
   for (let i = 0; i < persist.equipped.length; i++) {
     const id = persist.equipped[i];
+    if (id === "priest" || id === "engineer") continue;      // support units auto-heal, not click-driven
     if (id === "knight") { movedKnight = true; continue; }   // knight holds a post instead of firing
     unitAttackAt(id, i, tx, ty, 1);
   }
@@ -2029,12 +2035,10 @@ function commandKnightTick(dt) {
   const dmg = unitStat("knight", "dmg") * unitTalentBonus("knight", "dmg").mul * globalAllDmgMul() * nk;
   for (const t of run.enemies) if (Math.hypot(t.x - run.knightCmd.x, t.y - run.knightCmd.y) <= r + t.r) { damageEnemy(t, dmg, { type: "physical", src: "knight" }); applySlow(t, slow, 0.9); }
 }
-function overwatchChargeTime(id) { return (unitStat(id, "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) * 4; }
-function overwatchRelease(tx, ty) {
-  let fired = 0;
-  for (let i = 0; i < persist.equipped.length; i++) { const full = overwatchChargeTime(persist.equipped[i]); if ((run.charge[i] || 0) >= full) { unitAttackAt(persist.equipped[i], i, tx, ty, 2.5); run.charge[i] = 0; fired++; } }
-  if (!fired) spawnText(tx, ty, "not charged", DMG.enemy, {});
-}
+// Overwatch charge time scales with attack speed: faster units charge sooner.
+function overwatchChargeTime(id) { return (unitStat(id, "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) * 4 / attackSpeedMul(id); }
+// A charged Overwatch shot hits ×2.5 harder; reuse the leader-mods shape.
+const OVERWATCH_MODS = { dmgMul: 2.5, burn: 0, slow: 0, splash: 0, lifesteal: 0, fastTarget: false };
 
 // --- Trapmaster: clicking places a trap based on the next equipped unit ---
 const TRAP_DEFS = {
@@ -2046,13 +2050,14 @@ const TRAP_DEFS = {
   icewizard: { name:"Frost Trap",     icon:"❄️", color:"#a6e6ff", r:80,  life:10, tick:0.4, slow:0.6, dmgMul:1, type:"ice" },
   knight:    { name:"Guard Zone",     icon:"🛡️", color:"#8cb4ff", r:110, life:10, tick:0.4, slow:0.5, dmgMul:1.5, type:"physical" },
   assassin:  { name:"Ambush",         icon:"🗡️", color:"#ff8a80", r:70,  life:16, once:true, dmgMul:8, crit:true, type:"physical" },
-  priest:    { name:"Healing Zone",   icon:"✨", color:"#5dffa0", r:90,  life:12, tick:0.6, heal:8 },
-  engineer:  { name:"Repair Station", icon:"🔧", color:"#ffd76b", r:100, life:16, tick:1.0, heal:12 },
+  // (Priest & Engineer don't place traps — they auto-heal normally instead.)
 };
 function placeTrap(mx, my) {
-  if (!persist.equipped.length) return;
+  // Only trap-capable units (not the no-damage Priest/Engineer) cycle here.
+  const trappers = persist.equipped.filter(id => TRAP_DEFS[id]);
+  if (!trappers.length) return;
   run.trapIdx = run.trapIdx || 0;
-  const id = persist.equipped[run.trapIdx % persist.equipped.length];
+  const id = trappers[run.trapIdx % trappers.length];
   run.trapIdx++;
   const def = TRAP_DEFS[id]; if (!def) return;
   const dmg = def.dmgMul ? unitStat(id, "dmg") * def.dmgMul * globalAllDmgMul() : 0;
@@ -2099,9 +2104,8 @@ const SPELLS = {
   firewizard:{ name:"Flame Wave",   cd:8,  cast:() => { for (const e of run.enemies.slice()) { applyBurn(e, unitStat("firewizard","burn")*globalAllDmgMul()*2, 2); damageEnemy(e, spellDmg("firewizard",3), { type:"fire", src:"firewizard" }); } } },
   icewizard: { name:"Freeze Field", cd:8,  cast:() => { for (const e of run.enemies.slice()) { damageEnemy(e, spellDmg("icewizard",2), { type:"ice", src:"icewizard" }); applySlow(e, 0.7, 4); } } },
   knight:    { name:"Shield Slam",  cd:7,  cast:() => { for (const e of frontEnemies(0.45)) { damageEnemy(e, spellDmg("knight",5), { type:"physical", src:"knight" }); applySlow(e, 0.6, 2); } } },
-  priest:    { name:"Emergency Heal",cd:10, cast:() => { healBase((run.baseMaxHP || 100) * 0.35); } },
-  engineer:  { name:"Overcharge",   cd:12, cast:() => { run.overchargeT = 6; } },
   assassin:  { name:"Execute Strike",cd:6, cast:() => { const e = strongestEnemy(); if (e) { shoot(e.x, e.y, "#ff8a80", "arrow"); damageEnemy(e, spellDmg("assassin",10) * 3, { type:"physical", crit:true, src:"assassin" }); } } },
+  // (Priest & Engineer have no ability button — they auto-heal normally instead.)
 };
 function castSpell(slot) {
   if (chMode() !== "spellbook" || GS !== "COMBAT") return;
@@ -2196,21 +2200,29 @@ function update(dt) {
       }
     }
   }
-  // Equipped units attack. Some modes replace auto-attacks with click/ability
-  // input; Leader mode lets only slot 0 attack (with support mods); Overwatch
-  // charges instead of firing.
+  // Equipped units act. Priest & Engineer deal no damage, so they always
+  // auto-heal on their normal cooldown — even in click/aim/trap modes (they
+  // can't shoot projectiles or place traps). Damage units follow the mode:
+  // Leader = only slot 0 attacks; Overwatch = charge then auto-fire; the
+  // click-driven modes (Command/Trapmaster/Spellbook) skip auto-attacks.
   const mode = chMode();
   const lMods = mode === "leader" ? leaderMods() : null;
-  if (mode === "overwatch") {
-    for (let i = 0; i < persist.equipped.length; i++) { const id = persist.equipped[i]; if (!id) continue; run.charge[i] = Math.min(overwatchChargeTime(id), (run.charge[i] || 0) + dt); }
-  } else if (!autoAttacksOff()) {
-    for (let i = 0; i < persist.equipped.length; i++) {
-      const id = persist.equipped[i]; if (!id) continue;
-      if (mode === "leader" && i > 0) continue;   // supports don't attack directly
-      const cd = (unitStat(id, "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) / attackSpeedMul(id);
-      unitTimers[i] = (unitTimers[i] || rand(0, cd)) - dt;
-      if (unitTimers[i] <= 0) { unitTimers[i] = cd; unitAttack(id, i, (mode === "leader" && i === 0) ? lMods : null); if (GS !== "COMBAT") return; }
+  for (let i = 0; i < persist.equipped.length; i++) {
+    const id = persist.equipped[i]; if (!id) continue;
+    const support = (id === "priest" || id === "engineer");   // no-damage support
+    if (mode === "leader" && i > 0) continue;                 // supports become passive mods
+    // Overwatch: damage units charge & auto-fire; support units fall through to auto-heal.
+    if (mode === "overwatch" && !support) {
+      const full = overwatchChargeTime(id);
+      run.charge[i] = (run.charge[i] || 0) + dt;
+      if (run.charge[i] >= full) { run.charge[i] = 0; unitAttack(id, i, OVERWATCH_MODS); if (GS !== "COMBAT") return; }
+      continue;
     }
+    // Click-driven modes: damage units are player-controlled; support units still auto-heal.
+    if (autoAttacksOff() && !support) continue;
+    const cd = (unitStat(id, "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) / attackSpeedMul(id);
+    unitTimers[i] = (unitTimers[i] || rand(0, cd)) - dt;
+    if (unitTimers[i] <= 0) { unitTimers[i] = cd; unitAttack(id, i, (mode === "leader" && i === 0) ? lMods : null); if (GS !== "COMBAT") return; }
   }
   // Trapmaster: tick placed traps.
   if (mode === "trapmaster" && run.traps.length) updateTraps(dt);
@@ -2482,8 +2494,8 @@ function drawDefenders() {
     const id = persist.equipped[i], p = defenderPos(i, n);
     ctx.fillStyle = 'rgba(12,15,23,.55)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
     if (!drawSprite(UNIT_IMAGES[id], p.x, p.y, 50, 50)) ctx.fillText(UNITS[id].emoji, p.x, p.y + 7);
-    // Overwatch: charge bar under each unit (glows gold when ready to fire).
-    if (mode === "overwatch") {
+    // Overwatch: charge bar under each damage unit (support units auto-heal).
+    if (mode === "overwatch" && id !== "priest" && id !== "engineer") {
       const full = overwatchChargeTime(id), k = clamp((run.charge[i] || 0) / full, 0, 1);
       ctx.fillStyle = '#0009'; ctx.fillRect(p.x - 22, p.y + 26, 44, 6);
       ctx.fillStyle = k >= 1 ? '#ffd54f' : '#4fc3f7'; ctx.fillRect(p.x - 22, p.y + 26, 44 * k, 6);
@@ -2551,7 +2563,7 @@ canvas.addEventListener("click", (ev) => {
   const mode = chMode();
   if (mode === "command")   { commandClick(mx, my); return; }   // all units strike the aim point
   if (mode === "trapmaster"){ placeTrap(mx, my); return; }       // place a trap
-  if (mode === "overwatch") { overwatchRelease(mx, my); return; } // release charged units
+  // (Overwatch now auto-fires when charged — clicking just does normal click damage.)
 
   // A shot always fires toward the clicked point (even into empty space).
   shoot(mx, my, "#ffffff", "arrow");
@@ -2701,7 +2713,7 @@ function updateCombatTip() {
     command:   "🕹️ <span><b>Command Mode:</b> click the battlefield to command ALL units to strike there. The knight holds the last spot you click.</span>",
     trapmaster:"🪤 <span><b>Trapmaster:</b> click to place a trap — each click cycles through your equipped units' traps.</span>",
     spellbook: "📖 <span><b>Spellbook:</b> cast your units' abilities from the buttons below; each has its own cooldown.</span>",
-    overwatch: "🔭 <span><b>Overwatch:</b> units charge up (bars below them). Click to release every charged unit toward that point.</span>",
+    overwatch: "🔭 <span><b>Overwatch:</b> units charge up (bars below them) and auto-fire a powerful shot when ready. Faster attack speed = quicker charge.</span>",
     leader:    "🫡 <span><b>Leader Mode:</b> only slot 1 attacks; the other slots buff the leader. Loadout order matters!</span>",
     bounty:    "🎯 <span><b>Bounty Hunt:</b> kill the 👑 marked enemy before it reaches the base for a wave bonus.</span>",
     chain:     "💥 <span><b>Chain Reaction:</b> enemies explode on death — line them up in clusters.</span>",
@@ -2787,14 +2799,18 @@ function fortressState(pct) {
   return { label:'Critical Condition', note:'The wall is collapsing — one more push could destroy the keep.', cls:'danger' };
 }
 
+let upgradeTab = "loadout";
 function refreshUI() {
   document.getElementById("uCoins").textContent = fmt(persist.coins);
   document.getElementById("uTP").textContent = persist.talentPoints;
   document.getElementById("tpCost").textContent = fmt(nextTPCost());
   document.getElementById("buyTPBtn").disabled = persist.coins < nextTPCost();
   const ls = document.getElementById('loadoutSummary'); if (ls) ls.textContent = persist.equipped.length + ' / 5';
-  renderEquip(); renderShop(); renderTalents();
-  save();
+  // Only rebuild the tab that's actually visible — the hidden tab's (heavier)
+  // DOM isn't regenerated on every buy/equip click, which keeps it snappy.
+  if (upgradeTab === "talents") renderTalents();
+  else { renderEquip(); renderShop(); }
+  saveDebounced();
 }
 
 function rankPips(rank, max) {
@@ -3082,10 +3098,11 @@ document.getElementById("mQuit").onclick = () => {
 document.getElementById("uBack").onclick = () => setState("MENU");
 // Upgrade-screen tab switching (Loadout / Talents).
 function setUpgradeTab(name) {
+  upgradeTab = name;
   document.querySelectorAll(".upg-tab").forEach(b => b.classList.toggle("active", b.dataset.utab === name));
   document.querySelectorAll(".upg-pane").forEach(p => p.classList.toggle("active", p.id === "upane-" + name));
 }
-document.querySelectorAll(".upg-tab").forEach(b => { b.onclick = () => setUpgradeTab(b.dataset.utab); });
+document.querySelectorAll(".upg-tab").forEach(b => { b.onclick = () => { setUpgradeTab(b.dataset.utab); refreshUI(); }; });
 document.getElementById("iBack").onclick = () => setState("MENU");
 document.getElementById("sBack").onclick = () => setState("MENU");
 const resolutionSelectEl = document.getElementById("resolutionSelect");

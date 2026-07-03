@@ -26,6 +26,19 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.2.0 — UPDATE — 2026-07-03 08:15 SAST
+  Changed:
+    - Overwatch Mode: units now AUTO-FIRE when charged (no clicking). Charge
+      time scales with attack speed — faster units charge sooner.
+    - In all click/aim modes (Command, Trapmaster, Spellbook, Overwatch),
+      the Priest and Engineer now work normally: they auto-heal on their
+      cooldown and are excluded from shooting, trap placement, ability
+      buttons and charging (since they deal no damage).
+  Fixed:
+    - Upgrade screen lag: only the visible tab (Loadout or Talents) is
+      rebuilt on each action instead of every card every time, and saves to
+      localStorage are debounced. Much snappier when buying/equipping.
+
 v8.1.0 — UPDATE — 2026-07-02 14:16 SAST
   Added:
     - Stack up to 3 Run Challenges per run. The Challenges screen is now split
