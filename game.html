@@ -167,6 +167,13 @@ button.danger { border-color: var(--bad); color: var(--bad); }
   padding:8px; font-size:11px; pointer-events:none; backdrop-filter: blur(2px);
 }
 #dmgMeter .dm-title { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-bottom:6px; }
+/* Collapsible overlays (Damage Meter + Castle Status) */
+#dmToggle, #fortToggle { cursor:pointer; pointer-events:auto; user-select:none; }
+.collapse-caret { display:inline-block; transition:transform .15s; font-size:9px; opacity:.7; }
+#dmgMeter.collapsed .collapse-caret, #fortPanel.collapsed .collapse-caret { transform:rotate(-90deg); }
+#dmgMeter.collapsed #dmRows { display:none; }
+#dmgMeter.collapsed .dm-title { margin-bottom:0; }
+#fortPanel.collapsed .fort-head, #fortPanel.collapsed .fort-readout, #fortPanel.collapsed .fort-bar, #fortPanel.collapsed .fort-note { display:none; }
 .dm-row { margin-bottom:5px; }
 .dm-row .dm-head { display:flex; justify-content:space-between; gap:6px; margin-bottom:2px; }
 .dm-row .dm-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -364,8 +371,20 @@ button.danger { border-color: var(--bad); color: var(--bad); }
 .slot.filled { border-color:rgba(79,195,247,.45); box-shadow:0 0 0 1px rgba(79,195,247,.08), inset 0 1px 0 rgba(255,255,255,.05); }
 .slot .emoji { font-size:30px; filter:drop-shadow(0 4px 12px rgba(0,0,0,.35)); }
 .slot button { border-radius:999px; }
-#shop.scroll, #talents.scroll { max-height:66vh; padding-right:6px; }
+#talents.scroll { max-height:66vh; padding-right:6px; }
 #inventory { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:10px; }
+/* Shop is a responsive grid that scrolls with the PAGE (no inner scrollbar). */
+.shop-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; align-items:start; }
+.shop-grid .card { margin-bottom:0; }
+/* Equipped loadout pinned to the top of the viewport while the grid scrolls. */
+.loadout-sticky {
+  position:sticky; top:0; z-index:6;
+  margin:-14px -14px 6px; padding:14px 14px 10px;
+  background:linear-gradient(180deg, rgba(24,29,45,.99), rgba(20,25,39,.99));
+  border-bottom:1px solid rgba(255,255,255,.08);
+  border-radius:18px 18px 0 0;
+  box-shadow:0 12px 20px -12px rgba(0,0,0,.55);
+}
 .card.unit-card, .card.talent-card, #saveManager.card {
   border-radius:15px; border-color:rgba(255,255,255,.08);
   background:linear-gradient(180deg, rgba(35,42,61,.96), rgba(24,29,45,.96));
@@ -879,7 +898,7 @@ button.danger { background: rgba(239,83,80,.08); }
     <div id="battlefield">
       <div class="battlefield-frame-label">Defend the Keep</div>
       <div class="fortress-panel" id="fortPanel">
-        <div class="fort-kicker">Castle Status</div>
+        <div class="fort-kicker" id="fortToggle">Castle Status <span class="collapse-caret">▾</span></div>
         <div class="fort-head">
           <div class="fort-icon">🏰</div>
           <div>
@@ -893,7 +912,7 @@ button.danger { background: rgba(239,83,80,.08); }
       </div>
       <canvas id="canvas" width="1600" height="900"></canvas>
       <!-- Live damage meter: who is dealing the most damage this run -->
-      <div id="dmgMeter"><div class="dm-title">Damage Meter</div><div id="dmRows"></div></div>
+      <div id="dmgMeter"><div class="dm-title" id="dmToggle">Damage Meter <span class="collapse-caret">▾</span></div><div id="dmRows"></div></div>
     </div>
     <!-- Spellbook Mode: one ability button per equipped unit (hidden otherwise) -->
     <div id="spellBar" style="display:none"></div>
@@ -925,18 +944,21 @@ button.danger { background: rgba(239,83,80,.08); }
     <!-- TAB 1: Loadout — equipped defenders + recruit/upgrade in one place -->
     <div class="upg-pane active" id="upane-loadout">
       <div class="col unit-panel">
-        <div class="panel-head">
-          <div>
-            <h3>🧝 Unit Loadout <span class="tag" id="loadoutSummary">0 / 5</span></h3>
-            <div class="panel-subtitle">Equip up to 5 defenders — you can equip the same unit more than once.</div>
+        <!-- Equipped UI stays pinned to the top while the shop grid scrolls with the page. -->
+        <div class="loadout-sticky">
+          <div class="panel-head">
+            <div>
+              <h3>🧝 Unit Loadout <span class="tag" id="loadoutSummary">0 / 5</span></h3>
+              <div class="panel-subtitle">Equip up to 5 defenders — you can equip the same unit more than once.</div>
+            </div>
           </div>
+          <div class="section-title">Equipped defenders</div>
+          <div id="equipSlots"></div>
         </div>
-        <div class="section-title">Equipped defenders</div>
-        <div id="equipSlots"></div>
         <div class="quick-tip">Only equipped units fight during a run. You can stack duplicates (e.g. 5 Archers) — each copy fills one slot and fights as its own unit.</div>
         <div class="section-title">Recruit &amp; upgrade</div>
         <div class="help">Buy adds a copy and levels the unit up. <b>Equip</b> adds it straight to an open slot — no scrolling needed.</div>
-        <div class="scroll tall" id="shop"></div>
+        <div id="shop" class="shop-grid"></div>
       </div>
     </div>
 
@@ -1852,6 +1874,16 @@ const KNIGHT_POSTS = [
 function knightCount() { return Math.min(5, 2 + talentRank("t_knight_block")); }
 function knightRadius() { return unitStat("knight", "guard") + unitTalentBonus("knight", "guard").add; }
 function knightPositions() { return KNIGHT_POSTS.slice(0, knightCount()).map(p => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H })); }
+// Overwatch: charged knight slash — DOUBLE range and heavy damage at each post.
+function knightSlash() {
+  const r = knightRadius() * 2;
+  const slow = unitStat("knight", "slow") * (1 + talentEffect("t_knight_block"));
+  const dmg = unitStat("knight", "dmg") * unitTalentBonus("knight", "dmg").mul * globalAllDmgMul() * 3.5;
+  for (const p of knightPositions()) {
+    boom(p.x, p.y, r, "#ff5c5c", "burst"); boom(p.x, p.y, r, "#ffd54f", "ring");
+    for (const t of run.enemies) if (Math.hypot(t.x - p.x, t.y - p.y) <= r + t.r) { damageEnemy(t, dmg, { type: "physical", src: "knight" }); applySlow(t, slow, 1.2); }
+  }
+}
 
 function unitAttack(id, slot, mods) {
   const allDmgMul = globalAllDmgMul();
@@ -2211,7 +2243,18 @@ function update(dt) {
     const id = persist.equipped[i]; if (!id) continue;
     const support = (id === "priest" || id === "engineer");   // no-damage support
     if (mode === "leader" && i > 0) continue;                 // supports become passive mods
-    // Overwatch: damage units charge & auto-fire; support units fall through to auto-heal.
+    // Overwatch: the Knight stays on the board attacking normally AND charges a
+    // powerful slash (double range, extra damage). Other damage units charge &
+    // auto-fire; support units fall through to auto-heal.
+    if (mode === "overwatch" && id === "knight") {
+      const cd = (unitStat(id, "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) / attackSpeedMul(id);
+      unitTimers[i] = (unitTimers[i] || rand(0, cd)) - dt;
+      if (unitTimers[i] <= 0) { unitTimers[i] = cd; unitAttack("knight", i); }   // normal post attacks
+      const full = overwatchChargeTime(id);
+      run.charge[i] = (run.charge[i] || 0) + dt;
+      if (run.charge[i] >= full) { run.charge[i] = 0; knightSlash(); }           // charged slash
+      continue;
+    }
     if (mode === "overwatch" && !support) {
       const full = overwatchChargeTime(id);
       run.charge[i] = (run.charge[i] || 0) + dt;
@@ -2282,7 +2325,7 @@ function render() {
 
   if (run && run.active) {
     // ---- Knight defence zone: a clearly-visible arc in front of the wall ----
-    if (persist.equipped.includes("knight") && chMode() !== "trapmaster" && chMode() !== "command" && chMode() !== "spellbook" && chMode() !== "overwatch") drawKnightZone();
+    if (persist.equipped.includes("knight") && chMode() !== "trapmaster" && chMode() !== "command" && chMode() !== "spellbook") drawKnightZone();
     // ---- Trapmaster: placed traps ----
     if (run.traps.length) drawTraps();
     // ---- Command Mode: the knight's held post ----
@@ -3120,6 +3163,9 @@ document.getElementById("speedBtn").onclick = () => {
 };
 document.getElementById("buyTPBtn").onclick = buyTalentPoint;
 document.getElementById("wipeBtn").onclick = () => { if (confirm("Erase all progress?")) { localStorage.removeItem(SAVE_KEY); location.reload(); } };
+// Collapsible battlefield overlays.
+document.getElementById("dmToggle").onclick = () => document.getElementById("dmgMeter").classList.toggle("collapsed");
+document.getElementById("fortToggle").onclick = () => document.getElementById("fortPanel").classList.toggle("collapsed");
 
 /* ---- Boot ---- */
 function init() {

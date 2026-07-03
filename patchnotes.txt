@@ -26,6 +26,19 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.3.0 — UPDATE — 2026-07-03 14:44 SAST
+  Changed:
+    - Loadout tab: the recruit/upgrade units now display as a responsive GRID
+      instead of a list, and there's a single page scroll (no separate inner
+      unit scrollbar). The equipped-defenders UI is pinned (sticky) to the top
+      while the unit grid scrolls beneath it.
+    - Overwatch Mode: the Knight now stays on the board attacking normally AND
+      charges up a powerful slash (double range, ~3.5x damage) that releases
+      around each knight post when charged.
+  Added:
+    - The Castle Status panel and Damage Meter are now collapsible — click
+      their headers to fold/expand them.
+
 v8.2.0 — UPDATE — 2026-07-03 08:15 SAST
   Changed:
     - Overwatch Mode: units now AUTO-FIRE when charged (no clicking). Charge
