@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Click Defenders</title>
+  <!--
+    GitHub Pages entry point.
+
+    Pages serves a site's root index.html by default. The actual game lives in
+    game.html (see CLAUDE.md: "Launches from one file"). This tiny loader just
+    forwards the browser to game.html so the Pages URL
+      https://<user>.github.io/<repo>/
+    lands straight in the game. game.html still opens standalone offline too.
+  -->
+  <link rel="canonical" href="./game.html" />
+  <meta http-equiv="refresh" content="0; url=./game.html" />
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #10131c;
+      color: #cdd6f4;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    .wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      flex-direction: column;
+      gap: 14px;
+      text-align: center;
+    }
+    a { color: #89b4fa; }
+    .title { font-size: 26px; letter-spacing: 1px; }
+    .sub { opacity: 0.7; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">⚔ Click Defenders</div>
+    <div class="sub">Loading the game…</div>
+    <div class="sub">If it doesn't start, <a href="./game.html">click here to play</a>.</div>
+  </div>
+  <script>
+    // Belt-and-braces: JS redirect in case the meta refresh is blocked.
+    location.replace('./game.html');
+  </script>
+</body>
+</html>

@@ -26,6 +26,18 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.4.0 — UPDATE — 2026-07-13 09:32 SAST
+  Added:
+    - index.html — a tiny GitHub Pages entry point that forwards to game.html,
+      so the Pages URL loads straight into the game. game.html still opens
+      standalone offline (file://) exactly as before.
+    - .nojekyll — disables Jekyll processing on Pages so the sprites/ folder
+      (and any file/folder starting with "_") is served as-is.
+  Note:
+    - Actually turning Pages ON (and choosing which branch it serves) is a
+      one-time repo setting in GitHub → Settings → Pages that must be done by
+      the repo owner; it can't be toggled from code.
+
 v8.3.0 — UPDATE — 2026-07-03 14:44 SAST
   Changed:
     - Loadout tab: the recruit/upgrade units now display as a responsive GRID
