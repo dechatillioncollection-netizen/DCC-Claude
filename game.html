@@ -127,6 +127,7 @@ button.danger { border-color: var(--bad); color: var(--bad); }
 #screen-menu .title p { color:#cfe0ff; margin: 6px 0 0; letter-spacing:2px; font-size:14px; }
 #screen-menu .menu-buttons { position: relative; z-index: 2; display:flex; flex-direction:column; gap:16px; }
 #screen-menu .footer { position:absolute; bottom:10px; width:100%; text-align:center; color:var(--muted); font-size:11px; z-index:2; }
+#screen-menu .menu-disclaimer { position:absolute; bottom:10px; left:14px; max-width:280px; text-align:left; color:var(--muted); font-size:10px; line-height:1.45; opacity:.7; z-index:3; pointer-events:none; }
 #screen-menu .menu-save { position:relative; z-index:2; display:flex; gap:10px; justify-content:center; margin-top:18px; }
 #screen-menu .menu-save button { background:rgba(20,26,42,.7); border-color:var(--gold); color:var(--gold); }
 #screen-menu .menu-save-msg { position:relative; z-index:2; text-align:center; font-size:12px; min-height:16px; margin-top:8px; color:var(--good); }
@@ -869,6 +870,7 @@ button.danger { background: rgba(239,83,80,.08); }
         <div id="lastDamageRows" style="margin-top:10px;"></div>
       </div>
       <div class="footer">Progress auto-saves to your browser.</div>
+      <div class="menu-disclaimer">This is made using AI and is not meant to be sold, only as an idea test.</div>
     </div>
   </section>
 
