@@ -26,6 +26,11 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.5.1 — HOTFIX — 2026-07-13 09:52 SAST
+  Fixed:
+    - The Main Menu AI/idea-test disclaimer now stays on a single line
+      (no wrapping) instead of breaking across two lines.
+
 v8.5.0 — UPDATE — 2026-07-13 09:51 SAST
   Added:
     - A small disclaimer in the bottom-left of the Main Menu: "This is made
