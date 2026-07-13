@@ -829,6 +829,96 @@ button.danger { background: rgba(239,83,80,.08); }
   .settings-row { grid-template-columns: 1fr; }
 }
 
+/* ============================================================
+   QUALITY RECREATION — high-fidelity presentation layer.
+   Purely visual: no gameplay values, element IDs or layout hooks
+   change. Adds CSS 3D depth (perspective tilts, sheen sweeps,
+   card entrances) and a livelier main-menu night scene.
+   ============================================================ */
+@keyframes cloudDrift { from { transform: translateX(-4%); } to { transform: translateX(4%); } }
+@keyframes emberFloat {
+  0%   { transform: translateY(0);      opacity: 0; }
+  10%  { opacity: .85; }
+  100% { transform: translateY(-52vh);  opacity: 0; }
+}
+@keyframes titlePulse {
+  from { filter: drop-shadow(0 4px 0 #5a3d00) drop-shadow(0 0 10px rgba(255,215,107,.28)); }
+  to   { filter: drop-shadow(0 4px 0 #5a3d00) drop-shadow(0 0 26px rgba(255,215,107,.65)); }
+}
+@keyframes sheen { from { transform: translateX(-140%) skewX(-18deg); } to { transform: translateX(320%) skewX(-18deg); } }
+@keyframes cardIn {
+  from { opacity: 0; transform: perspective(700px) rotateY(12deg) translateY(16px); }
+  to   { opacity: 1; transform: perspective(700px) rotateY(0deg)  translateY(0); }
+}
+@keyframes moonBob { from { transform: translateY(0); } to { transform: translateY(-8px); } }
+
+/* --- Main-menu night scene: extra parallax layers --- */
+#screen-menu .menu-wrap { perspective: 1100px; }
+#screen-menu .clouds {
+  position:absolute; inset:0; pointer-events:none; opacity:.55;
+  background:
+    radial-gradient(260px 46px at 20% 16%, rgba(190,210,240,.16), transparent 70%),
+    radial-gradient(320px 58px at 62% 9%,  rgba(190,210,240,.11), transparent 70%),
+    radial-gradient(240px 44px at 86% 24%, rgba(190,210,240,.14), transparent 70%);
+  animation: cloudDrift 32s ease-in-out infinite alternate;
+}
+#screen-menu .hill2 {
+  position:absolute; left:-8%; right:-8%; bottom:8%; height:34%;
+  background:#101d2a; border-radius:50% 50% 0 0 / 82% 82% 0 0; opacity:.9;
+  box-shadow: 0 -8px 34px rgba(0,0,0,.35);
+}
+#screen-menu .embers {
+  position:absolute; left:0; right:0; bottom:0; height:58%; pointer-events:none;
+  background-image:
+    radial-gradient(3px 3px at 12% 92%, rgba(255,190,90,.9), transparent),
+    radial-gradient(2px 2px at 30% 97%, rgba(255,150,60,.8), transparent),
+    radial-gradient(2.5px 2.5px at 55% 93%, rgba(255,205,110,.9), transparent),
+    radial-gradient(2px 2px at 73% 98%, rgba(255,160,70,.8), transparent),
+    radial-gradient(2.5px 2.5px at 89% 94%, rgba(255,200,100,.85), transparent);
+  animation: emberFloat 11s linear infinite;
+}
+#screen-menu .moon { animation: moonBob 6s ease-in-out infinite alternate; }
+#screen-menu .title h1 {
+  background: linear-gradient(180deg, #fff3c9 0%, #ffd76b 48%, #d09a1f 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: none;
+  animation: titlePulse 2.8s ease-in-out infinite alternate;
+}
+
+/* --- 3D menu buttons: perspective lift + light sheen sweep --- */
+.menu-btn { position: relative; overflow: hidden; transition: transform .16s ease, box-shadow .16s ease, background .16s; }
+.menu-btn::after {
+  content:""; position:absolute; top:0; bottom:0; left:0; width:34%;
+  transform: translateX(-140%) skewX(-18deg);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent);
+  pointer-events:none;
+}
+.menu-btn:hover:not(:disabled) {
+  transform: perspective(640px) translateY(-3px) rotateX(7deg) scale(1.02);
+  box-shadow: 0 12px 26px rgba(0,0,0,.45), inset 0 0 18px rgba(255,215,107,.25);
+}
+.menu-btn:hover:not(:disabled)::after { animation: sheen .7s ease; }
+.menu-btn:active:not(:disabled) { transform: perspective(640px) translateY(1px) rotateX(3deg) scale(.99); }
+
+/* --- 3D card tilts (upgrades, challenges, boss rewards) --- */
+.card.unit-card:hover { transform: perspective(900px) translateY(-3px) rotateX(2.5deg); }
+.challenge-card:hover:not(.locked) { transform: perspective(900px) translateY(-2px) rotateX(2deg); }
+#bossChoices .choice { animation: cardIn .38s ease backwards; }
+#bossChoices .choice:nth-child(1) { animation-delay: .04s; }
+#bossChoices .choice:nth-child(2) { animation-delay: .12s; }
+#bossChoices .choice:nth-child(3) { animation-delay: .20s; }
+#bossChoices .choice:nth-child(4) { animation-delay: .28s; }
+.choice:hover { transform: perspective(800px) translateY(-4px) rotateX(4deg) scale(1.02); }
+
+/* Respect users who prefer less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -840,9 +930,12 @@ button.danger { background: rgba(239,83,80,.08); }
   <section class="screen" id="screen-menu">
     <div class="menu-wrap">
       <div class="stars"></div>
+      <div class="clouds"></div>
       <div class="moon"></div>
+      <div class="hill2"></div>
       <div class="castle"></div>
       <div class="hill"></div>
+      <div class="embers"></div>
 
       <div class="title">
         <h1>⚔ CLICK DEFENDERS</h1>
@@ -1785,6 +1878,8 @@ function damageEnemy(e, amount, opts) {
   e.hp -= amount; e.flash = 0.12;
   const color = opts.crit ? DMG.crit : dmgColor(opts.type);
   spawnText(e.x, e.y - e.r - 4, Math.round(amount), color, { crit: !!opts.crit });
+  // Impact sparks in the damage type's colour (visual only).
+  spawnParticles(e.x, e.y, color, { n: opts.crit ? 9 : 3, spd: opts.crit ? 190 : 110, life: 0.5 });
   if (e.hp <= 0) killEnemy(e);
 }
 // Damage with no floating number (used by per-frame burn ticks, which
@@ -1794,6 +1889,10 @@ function killEnemy(e) {
   const idx = run.enemies.indexOf(e);
   if (idx === -1) return;
   run.enemies.splice(idx, 1);
+  // Death flourish (visual only): burst of sparks in the enemy's colour;
+  // bosses get a bigger send-off with a gold ring and a camera kick.
+  spawnParticles(e.x, e.y, e.t.color, { n: e.boss ? 24 : 9, spd: e.boss ? 260 : 150, life: 0.8 });
+  if (e.boss) { boom(e.x, e.y, 120, "#ffd54f", "ring"); addShake(10); }
   let reward = Math.ceil(e.reward * buffProd("coinMul") * chMul("coinMul"));   // Greed/Fortune/Coin Storm/Blood Money + challenges
   persist.coins += reward;
   spawnText(e.x, e.y, "+" + reward, "#ffd54f");
@@ -2180,9 +2279,85 @@ function spawnText(x, y, text, color, opts) {
 // unit's own position so attacks originate from the unit; clicks use the castle.
 function shoot(tx, ty, color, style, sx, sy) { run.projectiles.push({ x: (sx == null ? BASE.x : sx), y: (sy == null ? BASE.y - 20 : sy), tx, ty, color, style: style || "arrow", life:0.18, t:0 }); }
 // style: "ring" (expanding outline) | "burst" (filled fading blob)
-function boom(x, y, r, color, style) { run.effects.push({ kind:"boom", x, y, r, color: color || DMG.cannon, style: style || "ring", life:0.35, t:0 }); }
+function boom(x, y, r, color, style) {
+  run.effects.push({ kind:"boom", x, y, r, color: color || DMG.cannon, style: style || "ring", life:0.35, t:0 });
+  // Big explosions kick the camera and throw debris (visual only).
+  if ((style || "ring") === "burst" && r >= 90) { addShake(Math.min(8, r / 18)); spawnParticles(x, y, color || DMG.cannon, { n: 8, spd: 210, life: 0.6 }); }
+}
 // Distinct click-AOE shockwave: translucent fill + bright dashed ring.
 function aoeBurst(x, y, r) { run.effects.push({ kind:"aoe", x, y, r, color: DMG.cannon, life:0.45, t:0 }); }
+
+/* ---- VISUAL-ONLY LAYER: particles, camera shake, colour helpers ----
+   Nothing here feeds back into the simulation: particles/shake are pure
+   presentation, live outside `run`, tick on real wall-clock time in loop()
+   (so they finish fading even on pause screens) and are capped for perf. */
+const MAX_PARTICLES = 260;
+const particles = [];
+// opts: n (count), spd (burst speed), vx/vy (drift), g (gravity, negative =
+// floats up), size, life, glow (additive render pass for sparks/embers).
+function spawnParticles(x, y, color, opts) {
+  opts = opts || {};
+  const n = opts.n || 6;
+  for (let i = 0; i < n && particles.length < MAX_PARTICLES; i++) {
+    const a = rand(0, Math.PI * 2), sp = rand(0.3, 1) * (opts.spd != null ? opts.spd : 120);
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * sp + (opts.vx || 0),
+      vy: Math.sin(a) * sp + (opts.vy || 0),
+      g: opts.g != null ? opts.g : 260,
+      size: rand(1.4, opts.size || 3.2),
+      color, glow: opts.glow !== false,
+      life: rand(0.3, opts.life || 0.65), t: 0,
+    });
+  }
+}
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i]; p.t += dt;
+    if (p.t >= p.life) { particles.splice(i, 1); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt;
+  }
+}
+function drawParticles() {
+  if (!particles.length) return;
+  ctx.save();
+  // Additive pass for glowing sparks, normal pass for smoke/debris.
+  for (const additive of [true, false]) {
+    ctx.globalCompositeOperation = additive ? "lighter" : "source-over";
+    for (const p of particles) {
+      if (p.glow !== additive) continue;
+      ctx.globalAlpha = clamp(1 - p.t / p.life, 0, 1) * 0.9;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1; ctx.restore();
+}
+// Camera shake: a small decaying render offset. addShake never affects
+// coordinates used by the simulation or click mapping.
+const SHAKE_DUR = 0.3;
+let shakeT = 0, shakeMag = 0;
+function addShake(mag) { shakeMag = Math.max(shakeT > 0 ? shakeMag : 0, Math.min(15, mag)); shakeT = SHAKE_DUR; }
+// Brief red edge flash when the base takes a hit (drawn by drawVignette).
+let baseFlashT = 0;
+// Throttle for the damaged-keep smoke emitter.
+let smokeT = 0;
+// "#rrggbb" -> rgba() string with the given alpha (used by gradient effects).
+function colA(hex, a) {
+  if (typeof hex !== "string" || hex[0] !== "#" || hex.length < 7) return hex;
+  return "rgba(" + parseInt(hex.slice(1, 3), 16) + "," + parseInt(hex.slice(3, 5), 16) + "," + parseInt(hex.slice(5, 7), 16) + "," + a + ")";
+}
+// Rounded-rect path helper (own implementation so file:// works everywhere).
+function rrect(x, y, w, h, r) {
+  r = Math.min(r, h / 2, w / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
 
 /* ---- Update step (only runs in COMBAT) ---- */
 function update(dt) {
@@ -2211,6 +2386,8 @@ function update(dt) {
       damageEnemySilent(e, tick, e.burnSrc || "firewizard"); e.burnTick += tick; e.flash = Math.max(e.flash, 0.03);
       e.burnEmit -= dt;
       if (e.burnEmit <= 0) { e.burnEmit = 0.45; if (e.burnTick >= 1) { spawnText(e.x, e.y - e.r - 4, Math.round(e.burnTick), DMG.fire, {}); e.burnTick = 0; } }
+      // Rising embers while burning (visual only).
+      if (Math.random() < dt * 7) spawnParticles(e.x + rand(-10, 10), e.y, DMG.fire, { n: 1, spd: 18, vy: -55, g: -50, size: 2.4, life: 0.7 });
       if (e.hp <= 0) { killEnemy(e); continue; }
     }
     let spd = e.spd; if (e.slowT > 0) { e.slowT -= dt; spd *= (1 - e.slowAmt); }
@@ -2223,12 +2400,15 @@ function update(dt) {
         // No Wall: lose a life (bounty costs two) instead of HP.
         const loss = e.bounty ? 2 : 1;
         run.lives -= loss;
+        addShake(6); baseFlashT = 0.35;   // visual feedback only
         spawnText(BASE.x + rand(-50,50), BASE.y - 20, "-" + loss + " ❤", DMG.enemy, {});
         if (run.lives <= 0) { run.lives = 0; endRun(); return; }
       } else {
         let dmg = e.dmg * (1 - talentEffect("base_armor")) * buffProd("dmgTakenMul") * chMul("dmgTakenMul"); // armour, buffs, challenges
         if (e.bounty) dmg *= 2;   // Bounty reaching the base hits harder
         run.baseHP -= dmg;
+        addShake(6); baseFlashT = 0.35;   // visual feedback only
+        spawnParticles(e.x, BASE_LINE, DMG.enemy, { n: 7, spd: 140, life: 0.5 });
         spawnText(BASE.x + rand(-50,50), BASE.y - 20, "-" + Math.round(dmg), DMG.enemy, {});
         if (run.baseHP <= 0) { run.baseHP = 0; endRun(); return; }
       }
@@ -2278,6 +2458,16 @@ function update(dt) {
   if (run.bonusSpdT > 0) run.bonusSpdT -= dt;
   if (run.overchargeT > 0) run.overchargeT -= dt;
   if (mode === "spellbook") { let changed = false; for (let i = 0; i < persist.equipped.length; i++) { if (run.spellCd[i] > 0) { run.spellCd[i] = Math.max(0, run.spellCd[i] - dt); changed = true; } } if (changed) { run.spellUiT = (run.spellUiT || 0) - dt; if (run.spellUiT <= 0) { run.spellUiT = 0.2; renderSpellBar(); } } }
+  // Smoke drifts off the keep while it's badly damaged (visual only).
+  smokeT -= dt;
+  if (smokeT <= 0) {
+    smokeT = 0.22;
+    const hpPct = run.baseMaxHP ? run.baseHP / run.baseMaxHP : 1;
+    if (!chHas("nowall") && hpPct < 0.5) {
+      spawnParticles(BASE.x + rand(-95, 95), BASE.y - rand(40, 130), "rgba(105,108,120,0.55)",
+        { n: 1, spd: 8, vy: -32, g: -18, size: hpPct < 0.25 ? 7 : 5, life: 1.5, glow: false });
+    }
+  }
   // Regen (Berserker's curse disables all base regen this run)
   const regen = buffFlag("noRegen") ? 0 : talentEffect("base_regen") + buffSum("regenAdd");
   if (regen > 0) healBaseSilent(regen * dt);
@@ -2303,27 +2493,145 @@ function update(dt) {
   if (run.meterTimer <= 0) { run.meterTimer = 0.3; renderDamageMeter(); }
 }
 
-/* ---- Render ---- */
+/* ---- Render ----
+   Recreated at higher fidelity: a layered pseudo-3D backdrop (perspective
+   ground plane converging on a vanishing point, parallax ridges, drifting
+   fog, animated defence barrier), glowing projectiles, gradient impact
+   effects, particles and camera shake. Purely visual — every gameplay
+   coordinate, hitbox and value is exactly what it always was. */
+// Pre-baked scenery for the procedural backdrop (generated once per load).
+const HORIZON = 150;                            // far edge of the ground plane
+const VANISH = { x: CANVAS_W / 2, y: -720 };    // vanishing point above the field
+const FIELD_STARS = Array.from({ length: 110 }, () => ({
+  x: Math.random() * CANVAS_W, y: Math.random() * (HORIZON - 14),
+  r: 0.6 + Math.random() * 1.5, tw: Math.random() * Math.PI * 2,
+}));
+function makeRidge(yBase, amp, seg) {
+  const pts = [];
+  for (let i = 0; i <= seg; i++) pts.push({ x: (i / seg) * CANVAS_W, y: yBase - Math.abs(Math.sin(i * 2.7 + 1)) * amp - Math.random() * amp * 0.4 });
+  return pts;
+}
+const RIDGE_FAR = makeRidge(HORIZON + 6, 74, 16);
+const RIDGE_NEAR = makeRidge(HORIZON + 34, 48, 22);
+function drawRidge(pts, closeY, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.moveTo(-4, closeY);
+  for (const p of pts) ctx.lineTo(p.x, p.y);
+  ctx.lineTo(CANVAS_W + 4, closeY); ctx.closePath(); ctx.fill();
+}
+// Procedural night scene: sky, stars, moon, mountain ridges and a ground
+// plane with perspective lanes — the pseudo-3D fallback when background.png
+// is missing. Coordinates are decorative; gameplay space is untouched.
+function drawBackdropProcedural(now) {
+  const sky = ctx.createLinearGradient(0, 0, 0, HORIZON + 60);
+  sky.addColorStop(0, "#070d1e"); sky.addColorStop(0.7, "#0e1830"); sky.addColorStop(1, "#16233c");
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, CANVAS_W, HORIZON + 60);
+  for (const s of FIELD_STARS) {
+    ctx.globalAlpha = 0.25 + 0.4 * (0.5 + 0.5 * Math.sin(now / 900 + s.tw));
+    ctx.fillStyle = "#dce8ff"; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const moonX = 1310, moonY = 74;
+  const halo = ctx.createRadialGradient(moonX, moonY, 8, moonX, moonY, 90);
+  halo.addColorStop(0, "rgba(207,232,255,.5)"); halo.addColorStop(1, "rgba(207,232,255,0)");
+  ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(moonX, moonY, 90, 0, Math.PI * 2); ctx.fill();
+  const moon = ctx.createRadialGradient(moonX - 8, moonY - 8, 4, moonX, moonY, 26);
+  moon.addColorStop(0, "#ffffff"); moon.addColorStop(1, "#a9bad4");
+  ctx.fillStyle = moon; ctx.beginPath(); ctx.arc(moonX, moonY, 26, 0, Math.PI * 2); ctx.fill();
+  drawRidge(RIDGE_FAR, HORIZON + 30, "#0a1526");
+  drawRidge(RIDGE_NEAR, HORIZON + 60, "#0d1b30");
+  // Ground plane: hazy at the far edge, mossy and dark up close.
+  const ground = ctx.createLinearGradient(0, HORIZON, 0, CANVAS_H);
+  ground.addColorStop(0, "#22334e"); ground.addColorStop(0.4, "#1a2739"); ground.addColorStop(1, "#182b22");
+  ctx.fillStyle = ground; ctx.fillRect(0, HORIZON, CANVAS_W, CANVAS_H - HORIZON);
+  // Perspective lanes converging on the vanishing point + foreshortened
+  // cross-lines: the classic 3D floor read.
+  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  for (let i = 0; i <= 12; i++) {
+    const bx = (i / 12) * CANVAS_W * 1.3 - CANVAS_W * 0.15;
+    const t = (HORIZON - CANVAS_H) / (VANISH.y - CANVAS_H);
+    ctx.beginPath(); ctx.moveTo(bx, CANVAS_H); ctx.lineTo(bx + (VANISH.x - bx) * t, HORIZON); ctx.stroke();
+  }
+  for (let i = 1; i <= 9; i++) {
+    const f = Math.pow(i / 9, 1.8);
+    ctx.globalAlpha = 0.03 + f * 0.05;
+    const y = HORIZON + (CANVAS_H - HORIZON) * f;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_W, y); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+// Atmosphere over either backdrop: distance haze, drifting fog banks and
+// the animated defence barrier (the same BASE_LINE gameplay cue as always).
+function drawAtmosphere(now) {
+  const haze = ctx.createLinearGradient(0, 0, 0, 250);
+  haze.addColorStop(0, "rgba(140,170,220,0.16)"); haze.addColorStop(1, "rgba(140,170,220,0)");
+  ctx.fillStyle = haze; ctx.fillRect(0, 0, CANVAS_W, 250);
+  for (let i = 0; i < 2; i++) {
+    const fx = CANVAS_W * (0.28 + i * 0.44) + Math.sin(now / (5200 + i * 1700) + i * 2) * 190;
+    const fy = 320 + i * 210;
+    const fog = ctx.createRadialGradient(fx, fy, 30, fx, fy, 330);
+    fog.addColorStop(0, "rgba(160,185,225,0.055)"); fog.addColorStop(1, "rgba(160,185,225,0)");
+    ctx.fillStyle = fog; ctx.beginPath(); ctx.arc(fx, fy, 330, 0, Math.PI * 2); ctx.fill();
+  }
+  const bar = ctx.createLinearGradient(0, BASE_LINE - 28, 0, BASE_LINE + 6);
+  bar.addColorStop(0, "rgba(79,195,247,0)"); bar.addColorStop(1, "rgba(79,195,247,0.20)");
+  ctx.fillStyle = bar; ctx.fillRect(0, BASE_LINE - 28, CANVAS_W, 34);
+  ctx.strokeStyle = "rgba(126,216,255,0.75)"; ctx.lineWidth = 2.5;
+  ctx.setLineDash([14, 10]); ctx.lineDashOffset = -(now / 28) % 24;
+  ctx.beginPath(); ctx.moveTo(0, BASE_LINE); ctx.lineTo(CANVAS_W, BASE_LINE); ctx.stroke();
+  ctx.setLineDash([]); ctx.lineDashOffset = 0; ctx.lineWidth = 1;
+}
+// Screen-space finish: soft vignette plus the red edge flash on base hits.
+function drawVignette(now) {
+  const v = ctx.createRadialGradient(CANVAS_W / 2, CANVAS_H / 2, CANVAS_H * 0.44, CANVAS_W / 2, CANVAS_H / 2, CANVAS_H * 0.95);
+  v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(2,4,9,0.3)");
+  ctx.fillStyle = v; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  if (baseFlashT > 0) {
+    const a = (baseFlashT / 0.35) * 0.32;
+    const f = ctx.createRadialGradient(CANVAS_W / 2, CANVAS_H / 2, CANVAS_H * 0.36, CANVAS_W / 2, CANVAS_H / 2, CANVAS_H * 0.9);
+    f.addColorStop(0, "rgba(239,83,80,0)"); f.addColorStop(1, "rgba(239,83,80," + a + ")");
+    ctx.fillStyle = f; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  }
+}
+// Small flickering torch flame + warm glow (keep decoration).
+function drawTorch(x, y, now) {
+  const fl = 0.82 + 0.18 * Math.sin(now / 87 + x * 0.13);
+  const g = ctx.createRadialGradient(x, y, 2, x, y, 26 * fl);
+  g.addColorStop(0, "rgba(255,196,100,.5)"); g.addColorStop(1, "rgba(255,120,30,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 26 * fl, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#ffd54f"; ctx.beginPath(); ctx.arc(x, y - 1, 3, 0, Math.PI * 2); ctx.fill();
+}
+// Rounded HP bar with a health-coloured gradient and dark casing.
+function drawHPBar(x, y, w, h, pct, boss) {
+  ctx.fillStyle = "rgba(5,8,14,0.8)"; rrect(x - 1.5, y - 1.5, w + 3, h + 3, 4); ctx.fill();
+  const col = boss ? ["#ff7043", "#ff5252"] : pct > 0.5 ? ["#9ccc65", "#66bb6a"] : pct > 0.25 ? ["#ffd54f", "#ffb300"] : ["#ff8a65", "#ef5350"];
+  if (pct > 0) {
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, col[0]); g.addColorStop(1, col[1]);
+    ctx.fillStyle = g; rrect(x, y, Math.max(2, w * pct), h, 3); ctx.fill();
+  }
+}
 function render() {
+  const now = performance.now();
   setCanvasQuality();
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-  // Field background: swappable sprites/background.png (drawn to fill the
-  // field). Falls back to the procedural gradient + lanes if it's missing.
+  ctx.save();
+  // Camera shake: a tiny decaying offset — render-only, input unaffected.
+  if (shakeT > 0) {
+    const k = shakeT / SHAKE_DUR;
+    ctx.translate(rand(-1, 1) * shakeMag * k, rand(-1, 1) * shakeMag * k);
+  }
+  // Field background: swappable sprites/background.png, colour-graded to sit
+  // in the night scene; otherwise the procedural pseudo-3D backdrop.
   if (imgReady(FIELD_BG_IMG)) {
     ctx.drawImage(FIELD_BG_IMG, 0, 0, CANVAS_W, CANVAS_H);
+    const grade = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+    grade.addColorStop(0, "rgba(8,14,30,0.26)"); grade.addColorStop(0.5, "rgba(8,12,24,0.06)"); grade.addColorStop(1, "rgba(5,16,11,0.16)");
+    ctx.fillStyle = grade; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
   } else {
-    const bg = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
-    bg.addColorStop(0, "#111a2c"); bg.addColorStop(0.62, "#0d1322"); bg.addColorStop(1, "#101b18");
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-    ctx.fillStyle = "rgba(102,187,106,0.08)"; ctx.fillRect(0, BASE_LINE, CANVAS_W, CANVAS_H - BASE_LINE);
-    for (let x = 60; x < CANVAS_W; x += 90) {
-      ctx.strokeStyle = "rgba(255,255,255,0.035)"; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x - 38, BASE_LINE); ctx.stroke();
-    }
+    drawBackdropProcedural(now);
   }
-  // Gameplay cue (always): the line enemies must cross to damage the base.
-  ctx.strokeStyle = "rgba(79,195,247,0.5)"; ctx.lineWidth = 2; ctx.setLineDash([8,7]);
-  ctx.beginPath(); ctx.moveTo(0, BASE_LINE); ctx.lineTo(CANVAS_W, BASE_LINE); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1;
-  ctx.fillStyle = "rgba(79,195,247,0.08)"; ctx.fillRect(0, BASE_LINE - 2, CANVAS_W, 4);
+  drawAtmosphere(now);
 
   if (run && run.active) {
     // ---- Knight defence zone: a clearly-visible arc in front of the wall ----
@@ -2333,37 +2641,83 @@ function render() {
     // ---- Command Mode: the knight's held post ----
     if (chMode() === "command" && run.knightCmd) drawCommandKnight();
 
-    // ---- Projectiles: arrows are thin fast lines; orbs are glowing balls ----
+    // ---- Projectiles: arrows are hot streaks with fading tails; orbs are
+    //      glowing energy balls with gradient trails ----
     for (const p of run.projectiles) {
       const k = p.t / p.life; const x = p.x + (p.tx-p.x)*k, y = p.y + (p.ty-p.y)*k;
       if (p.style === "orb") {
-        ctx.strokeStyle = p.color; ctx.globalAlpha = 0.3; ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x, y); ctx.stroke(); ctx.globalAlpha = 1; ctx.lineWidth = 1;
-        ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI*2); ctx.fill();
+        const trail = ctx.createLinearGradient(p.x, p.y, x, y);
+        trail.addColorStop(0, colA(p.color, 0)); trail.addColorStop(1, colA(p.color, 0.55));
+        ctx.strokeStyle = trail; ctx.lineWidth = 5; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x, y); ctx.stroke();
+        const ball = ctx.createRadialGradient(x, y, 1, x, y, 11);
+        ball.addColorStop(0, "rgba(255,255,255,.95)"); ball.addColorStop(0.35, p.color); ball.addColorStop(1, colA(p.color, 0));
+        ctx.fillStyle = ball; ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI*2); ctx.fill();
       } else {
-        ctx.strokeStyle = p.color; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x, y); ctx.stroke(); ctx.lineWidth = 1;
+        const tailX = p.x + (x - p.x) * Math.max(0, k - 0.35) / Math.max(k, 0.001);
+        const tailY = p.y + (y - p.y) * Math.max(0, k - 0.35) / Math.max(k, 0.001);
+        const trail = ctx.createLinearGradient(tailX, tailY, x, y);
+        trail.addColorStop(0, colA(p.color, 0)); trail.addColorStop(1, colA(p.color, 0.9));
+        ctx.strokeStyle = trail; ctx.lineWidth = 2.5; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(x, y); ctx.stroke();
+        ctx.fillStyle = "#ffffff"; ctx.globalAlpha = 0.9;
+        ctx.beginPath(); ctx.arc(x, y, 2.4, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
       }
+      ctx.lineWidth = 1; ctx.lineCap = "butt";
     }
 
     for (const e of run.enemies) {
       const sprite = ENEMY_IMAGES[e.type];
       const spriteSize = enemySpriteSize(e);
-      ctx.fillStyle = "rgba(0,0,0,.24)";
-      ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 1.15, e.r * 1.35, e.r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+      // Enemies fade in as they march out of the distant haze at the top.
+      const fadeIn = clamp((e.y + 20) / 62, 0, 1);
+      ctx.globalAlpha = fadeIn;
+      ctx.fillStyle = "rgba(0,0,0,.26)";
+      ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 1.15, e.r * 1.4, e.r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+      // Status auras under the sprite: warm glow while burning, cold while slowed.
+      if (e.burnT > 0 || e.slowT > 0) {
+        const ar = spriteSize * 0.42;
+        const c = e.burnT > 0 ? "255,122,51" : "140,210,255";
+        const aura = ctx.createRadialGradient(e.x, e.y, ar * 0.2, e.x, e.y, ar);
+        aura.addColorStop(0, "rgba(" + c + ",0.30)"); aura.addColorStop(1, "rgba(" + c + ",0)");
+        ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(e.x, e.y, ar, 0, Math.PI * 2); ctx.fill();
+      }
+      // Boss menace: pulsing red aura + ring.
+      if (e.boss) {
+        const pr = spriteSize * 0.55 + Math.sin(now / 200) * 6;
+        const aura = ctx.createRadialGradient(e.x, e.y, pr * 0.45, e.x, e.y, pr);
+        aura.addColorStop(0, "rgba(255,82,82,0)"); aura.addColorStop(1, "rgba(255,82,82,0.22)");
+        ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(e.x, e.y, pr, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(255,82,82,0.35)"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(e.x, e.y, pr, 0, Math.PI * 2); ctx.stroke(); ctx.lineWidth = 1;
+      }
       const drew = drawSprite(sprite, e.x, e.y, spriteSize, spriteSize);
       if (!drew) {
-        ctx.fillStyle = e.flash > 0 ? "#fff" : e.t.color; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
-        if (e.flying) { ctx.strokeStyle = "#fff"; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]); }
+        // Sprite missing: shaded-sphere fallback (reads with depth, not flat).
+        const sph = ctx.createRadialGradient(e.x - e.r * 0.35, e.y - e.r * 0.4, e.r * 0.15, e.x, e.y, e.r);
+        sph.addColorStop(0, e.flash > 0 ? "#ffffff" : "rgba(255,255,255,.85)");
+        sph.addColorStop(0.3, e.flash > 0 ? "#ffffff" : e.t.color);
+        sph.addColorStop(1, e.flash > 0 ? "#e8e8e8" : colA(e.t.color, 1));
+        ctx.fillStyle = sph; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "rgba(0,0,0,.22)";
+        ctx.beginPath(); ctx.arc(e.x + e.r * 0.18, e.y + e.r * 0.22, e.r * 0.82, 0, Math.PI * 2); ctx.fill();
+        if (e.flying) { ctx.strokeStyle = "#fff"; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]); }
       }
       // Hit flash scaled to the sprite so it reads on the larger art.
       if (e.flash > 0 && drew) {
-        ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.beginPath(); ctx.arc(e.x, e.y, spriteSize * 0.45, 0, Math.PI * 2); ctx.fill();
+        const fl = ctx.createRadialGradient(e.x, e.y, 2, e.x, e.y, spriteSize * 0.45);
+        fl.addColorStop(0, "rgba(255,255,255,.34)"); fl.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = fl; ctx.beginPath(); ctx.arc(e.x, e.y, spriteSize * 0.45, 0, Math.PI * 2); ctx.fill();
       }
       const bw = Math.max(e.r * 2.4, spriteSize * 0.52), hpk = clamp(e.hp/e.maxHP, 0, 1);
       const hpY = e.y - spriteSize * 0.45;
-      ctx.fillStyle = "#000"; ctx.fillRect(e.x-bw/2, hpY, bw, 6);
-      ctx.fillStyle = e.boss ? "#ff5252" : "#66bb6a"; ctx.fillRect(e.x-bw/2, hpY, bw*hpk, 6);
-      if (e.boss) { ctx.fillStyle = "#fff"; ctx.font = "bold 13px sans-serif"; ctx.textAlign = "center"; ctx.fillText("BOSS", e.x, e.y+e.r*1.35); }
+      drawHPBar(e.x - bw / 2, hpY, bw, e.boss ? 8 : 6, hpk, e.boss);
+      if (e.boss) {
+        ctx.font = "900 14px sans-serif"; ctx.textAlign = "center";
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(8,10,16,.8)";
+        ctx.strokeText("BOSS", e.x, e.y + e.r * 1.35);
+        ctx.fillStyle = "#ffdddd"; ctx.fillText("BOSS", e.x, e.y + e.r * 1.35); ctx.lineWidth = 1;
+      }
       // Bounty Hunt: pulsing gold ring + crown over the marked target.
       if (e.bounty) {
         const pr = spriteSize * 0.5 + 6 + Math.sin(performance.now() / 160) * 4;
@@ -2381,6 +2735,7 @@ function render() {
         ctx.fillText(statusIcons, e.x, e.y + spriteSize * 0.5);
         ctx.textBaseline = "alphabetic";
       }
+      ctx.globalAlpha = 1;   // end of this enemy's fade-in scope
     }
 
     for (const fx of run.effects) {
@@ -2388,34 +2743,50 @@ function render() {
       if (fx.kind === "boom") {
         const rr = fx.r * (0.4 + k);
         if (fx.style === "burst") {
-          ctx.globalAlpha = (1 - k) * 0.55; ctx.fillStyle = fx.color;
-          ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
-        } else { // ring
-          ctx.globalAlpha = 1 - k; ctx.strokeStyle = fx.color; ctx.lineWidth = 3;
-          ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.stroke(); ctx.lineWidth = 1; ctx.globalAlpha = 1;
+          // Gradient fireball: hot white core fading out through the effect colour.
+          const g = ctx.createRadialGradient(fx.x, fx.y, rr * 0.12, fx.x, fx.y, rr);
+          g.addColorStop(0, "rgba(255,255,255," + (0.5 * (1 - k)).toFixed(3) + ")");
+          g.addColorStop(0.35, colA(fx.color, 0.5 * (1 - k)));
+          g.addColorStop(1, colA(fx.color, 0));
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.fill();
+        } else { // ring: soft outer halo + crisp inner ring
+          ctx.globalAlpha = (1 - k) * 0.25; ctx.strokeStyle = fx.color; ctx.lineWidth = 7;
+          ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.stroke();
+          ctx.globalAlpha = 1 - k; ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.stroke();
+          ctx.lineWidth = 1; ctx.globalAlpha = 1;
         }
       } else if (fx.kind === "aoe") {
-        // Click shockwave — distinct from single-target click: filled blast + dashed ring.
+        // Click shockwave — distinct from single-target click: gradient blast + rotating dashed ring.
         const rr = fx.r * (0.3 + k * 0.9);
-        ctx.globalAlpha = (1 - k) * 0.30; ctx.fillStyle = fx.color;
-        ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.fill();
-        ctx.globalAlpha = 1 - k; ctx.strokeStyle = "#fff4c2"; ctx.lineWidth = 3; ctx.setLineDash([7,5]);
-        ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1; ctx.globalAlpha = 1;
+        const g = ctx.createRadialGradient(fx.x, fx.y, rr * 0.2, fx.x, fx.y, rr);
+        g.addColorStop(0, colA(fx.color, 0.30 * (1 - k)));
+        g.addColorStop(1, colA(fx.color, 0.05 * (1 - k)));
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1 - k; ctx.strokeStyle = "#fff4c2"; ctx.lineWidth = 3;
+        ctx.setLineDash([7,5]); ctx.lineDashOffset = -(now / 40) % 12;
+        ctx.beginPath(); ctx.arc(fx.x, fx.y, rr, 0, Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]); ctx.lineDashOffset = 0; ctx.lineWidth = 1; ctx.globalAlpha = 1;
       } else if (fx.kind === "text") {
-        ctx.globalAlpha = clamp(1 - k, 0, 1); ctx.fillStyle = fx.color;
+        // Floating numbers: dark outline for readability; crits pop-scale in.
+        ctx.globalAlpha = clamp(1 - k, 0, 1);
         ctx.textAlign = "center";
-        if (fx.crit) {
-          ctx.font = "bold 22px sans-serif"; ctx.shadowColor = fx.color; ctx.shadowBlur = 8;
-          ctx.fillText(fx.text + "!", fx.x, fx.y); ctx.shadowBlur = 0;
-        } else {
-          ctx.font = "bold " + (fx.heal ? 15 : 13) + "px sans-serif";
-          ctx.fillText(fx.text, fx.x, fx.y);
-        }
-        ctx.globalAlpha = 1;
+        const pop = fx.crit ? 1 + 0.5 * Math.max(0, 1 - k * 3) : 1;
+        const size = (fx.crit ? 24 : fx.heal ? 16 : 14) * pop;
+        ctx.font = "800 " + size.toFixed(1) + "px 'Segoe UI', sans-serif";
+        const txt = fx.crit ? fx.text + "!" : fx.text;
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(8,10,16,.75)";
+        ctx.strokeText(txt, fx.x, fx.y);
+        if (fx.crit) { ctx.shadowColor = fx.color; ctx.shadowBlur = 12; }
+        ctx.fillStyle = fx.color; ctx.fillText(txt, fx.x, fx.y);
+        ctx.shadowBlur = 0; ctx.lineWidth = 1; ctx.globalAlpha = 1;
       }
     }
   }
   drawBase();
+  drawParticles();
+  ctx.restore();          // end camera-shake offset
+  drawVignette(now);      // screen-space: vignette + base-hit flash
 }
 function drawBase() {
   const pct = run ? clamp(run.baseHP / run.baseMaxHP, 0, 1) : 1;
@@ -2428,11 +2799,18 @@ function drawBase() {
   // colour overlay. Falls back to the procedural keep + wall if no image.
   const castleImg = castleImageFor(pct);
   if (castleImg) {
+    const now = performance.now();
     const cW = 372, cH = 306, cBottom = BASE.y + 54, cTop = cBottom - cH;
+    // Warm hearth glow so the keep reads as lit at night (visual only).
+    const hearth = ctx.createRadialGradient(BASE.x, BASE.y - 40, 30, BASE.x, BASE.y - 40, 260);
+    hearth.addColorStop(0, 'rgba(255,193,94,.13)'); hearth.addColorStop(1, 'rgba(255,193,94,0)');
+    ctx.fillStyle = hearth; ctx.beginPath(); ctx.arc(BASE.x, BASE.y - 40, 260, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = 'rgba(0,0,0,.30)';
     ctx.beginPath(); ctx.ellipse(BASE.x, BASE.y + 42, 196, 26, 0, 0, Math.PI * 2); ctx.fill();
     setCanvasQuality();
     ctx.drawImage(castleImg, Math.round(BASE.x - cW / 2), Math.round(cTop), cW, cH);
+    drawTorch(BASE.x - 176, BASE.y - 26, now);
+    drawTorch(BASE.x + 176, BASE.y - 26, now);
     drawDefenders();
     return;
   }
@@ -2528,22 +2906,32 @@ function drawBase() {
 
   // (The "Frontier Keep · <state>" banner was removed — that info is shown in
   //  the Castle Status side panel instead.)
+  drawTorch(BASE.x - 176, BASE.y - 26, performance.now());
+  drawTorch(BASE.x + 176, BASE.y - 26, performance.now());
   drawDefenders();
 }
 // Equipped defenders spaced out along the wall (sprite, or emoji fallback).
+// Each idles with a gentle bob — drawing only; shots still originate from
+// the slot's true unitPost() position.
 function drawDefenders() {
   ctx.font = '20px sans-serif'; ctx.textAlign = 'center';
+  const now = performance.now();
   const n = persist.equipped.length;
   const mode = chMode();
   for (let i = 0; i < n; i++) {
     const id = persist.equipped[i], p = defenderPos(i, n);
+    const bob = Math.sin(now / 430 + i * 1.7) * 2.5;
     ctx.fillStyle = 'rgba(12,15,23,.55)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
-    if (!drawSprite(UNIT_IMAGES[id], p.x, p.y, 50, 50)) ctx.fillText(UNITS[id].emoji, p.x, p.y + 7);
+    if (!drawSprite(UNIT_IMAGES[id], p.x, p.y + bob, 50, 50)) ctx.fillText(UNITS[id].emoji, p.x, p.y + 7 + bob);
     // Overwatch: charge bar under each damage unit (support units auto-heal).
     if (mode === "overwatch" && id !== "priest" && id !== "engineer") {
       const full = overwatchChargeTime(id), k = clamp((run.charge[i] || 0) / full, 0, 1);
-      ctx.fillStyle = '#0009'; ctx.fillRect(p.x - 22, p.y + 26, 44, 6);
-      ctx.fillStyle = k >= 1 ? '#ffd54f' : '#4fc3f7'; ctx.fillRect(p.x - 22, p.y + 26, 44 * k, 6);
+      ctx.fillStyle = "rgba(5,8,14,0.8)"; rrect(p.x - 23.5, p.y + 24.5, 47, 9, 4); ctx.fill();
+      if (k > 0) {
+        const g = ctx.createLinearGradient(0, p.y + 26, 0, p.y + 32);
+        g.addColorStop(0, k >= 1 ? '#ffe082' : '#7ed4ff'); g.addColorStop(1, k >= 1 ? '#ffd54f' : '#4fc3f7');
+        ctx.fillStyle = g; rrect(p.x - 22, p.y + 26, Math.max(2, 44 * k), 6, 3); ctx.fill();
+      }
     }
   }
 }
@@ -2593,6 +2981,11 @@ function loop() {
   const now = performance.now(); let dt = (now - lastTime) / 1000; lastTime = now;
   dt = Math.min(dt, 0.05);
   for (let s = 0; s < gameSpeed; s++) update(dt);
+  // Visual-only systems tick on real wall-clock time so shakes settle and
+  // particles finish fading even on pause/reward screens.
+  updateParticles(dt);
+  if (shakeT > 0) shakeT = Math.max(0, shakeT - dt);
+  if (baseFlashT > 0) baseFlashT = Math.max(0, baseFlashT - dt);
   render();
   requestAnimationFrame(loop);
 }

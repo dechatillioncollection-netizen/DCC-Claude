@@ -464,6 +464,17 @@ with a glow; heals show `+n`.
 **Projectiles** (`run.projectiles`): style `arrow` (thin line) or `orb`
 (glowing ball with trail).
 
+**Visual-only layer (recreation).** The renderer adds a presentation layer
+that never feeds back into the simulation: a global `particles` array
+(`spawnParticles` — impact sparks, death bursts, burn embers, keep smoke;
+capped at `MAX_PARTICLES`, additive "glow" pass + normal pass), camera
+shake (`addShake` — a decaying render translate; input mapping unaffected),
+a red edge flash on base hits (`baseFlashT`), and a layered backdrop
+(`drawBackdropProcedural` pseudo-3D ground plane + `drawAtmosphere` fog,
+haze and the animated BASE_LINE barrier, `drawVignette`). These tick on
+real wall-clock time in `loop()`, so they settle even on pause screens.
+Removing any of them changes nothing about gameplay outcomes.
+
 ---
 
 ## 12. Damage pipeline (summary)

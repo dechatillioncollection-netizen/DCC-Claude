@@ -26,6 +26,37 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v9.0.0 — MAJOR — 2026-07-13 20:42 SAST
+  Added:
+    - Visual-only particle system: impact sparks per damage type, enemy
+      death bursts (bigger gold send-off for bosses), rising embers on
+      burning enemies, smoke drifting off the keep below 50% HP, and
+      debris from big explosions. Capped and additive-blended for perf.
+    - Camera shake + red edge flash when the base is hit, big explosions
+      land or a boss dies (render-only; click mapping is unaffected).
+    - Pseudo-3D battlefield backdrop: perspective ground plane converging
+      on a vanishing point, parallax mountain ridges, twinkling stars,
+      moon halo, drifting fog banks and distance haze at the top of the
+      field (procedural fallback when background.png is missing; the
+      sprite background gets a night colour-grade + the same atmosphere).
+    - The BASE_LINE defence cue is now an animated glowing energy barrier
+      (same gameplay line, same y position as always).
+    - Higher-fidelity combat art: glowing gradient orb/arrow projectiles
+      with trails, gradient fireball bursts and haloed rings, outlined
+      floating damage numbers with crit pop-in, rounded health bars that
+      shift green→amber→red, boss menace auras, enemy spawn fade-in,
+      shaded-sphere fallbacks when a sprite is missing, torch flames and
+      hearth glow on the keep, and idle bobbing defenders.
+    - CSS 3D polish: perspective tilt + sheen sweep on menu buttons,
+      3D hover tilt on unit/challenge/boss cards, staggered 3D entrance
+      for boss reward choices, gradient glowing title, extra menu scene
+      layers (drifting clouds, second hill, floating embers), and a
+      prefers-reduced-motion fallback.
+  Changed:
+    - This is a presentation-layer recreation only: every gameplay value,
+      formula, hitbox, save key and element ID is unchanged. Verified with
+      a headless 600-frame combat run + boss-reward flow (no exceptions).
+
 v8.6.0 — UPDATE — 2026-07-13 14:13 SAST
   Added:
     - CNAME file (clickdefenders.js.org) so the game can be served on a free
