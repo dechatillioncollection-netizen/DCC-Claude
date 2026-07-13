@@ -26,6 +26,17 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.7.0 — UPDATE — 2026-07-13 20:57 SAST
+  Added:
+    - game-hd.html — the HD Remaster (v9.0.0 from the recreation branch):
+      the same game and balance with a rebuilt presentation layer
+      (pseudo-3D backdrop, particles, camera shake, CSS 3D menus).
+      It shares this folder's sprites, run-buffs.js and the same
+      localStorage save, so progress carries over in both directions.
+    - "✨ HD REMASTER" button on the classic main menu that swaps to
+      game-hd.html, and a "↩ CLASSIC VERSION" button on the HD menu
+      that swaps back. Both flush any pending save before switching.
+
 v8.6.0 — UPDATE — 2026-07-13 14:13 SAST
   Added:
     - CNAME file (clickdefenders.js.org) so the game can be served on a free
