@@ -26,6 +26,13 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.6.0 — UPDATE — 2026-07-13 14:13 SAST
+  Added:
+    - CNAME file (clickdefenders.js.org) so the game can be served on a free
+      js.org custom subdomain via GitHub Pages. Requires a one-time PR to the
+      js-org/js.org repo to activate the DNS; the github.io URL redirects to
+      the js.org domain once that PR is merged.
+
 v8.5.1 — HOTFIX — 2026-07-13 09:52 SAST
   Fixed:
     - The Main Menu AI/idea-test disclaimer now stays on a single line
