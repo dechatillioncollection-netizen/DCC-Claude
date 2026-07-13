@@ -26,6 +26,25 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.8.0 — UPDATE — 2026-07-13 21:13 SAST
+  Fixed:
+    - It was too easy to land in the HD Remaster without meaning to: the
+      swap buttons sat in the main menu column right beside PLAY, and the
+      two menus looked identical after a run ended. Both swap buttons are
+      now corner badges (top-right), well away from PLAY/CONTINUE.
+  Added:
+    - The HD Remaster menu has its own unmistakable identity: ice/aurora
+      palette with an animated aurora sweep, cyan gradient title with an
+      "HD REMASTER" badge, frost sparkles instead of embers, cyan menu
+      buttons, plus an edition chip (bottom-right) on BOTH menus and
+      "HD" markers on the HD combat HUD and battlefield label.
+    - HD sprite remaster pipeline (game-hd.html only): every sprite PNG is
+      re-rendered at load time with a vibrance/contrast boost, a
+      directional light pass and a soft baked silhouette shadow. Works on
+      units, enemies, the castle damage states and the background; falls
+      back to the original PNGs if unsupported. sprites/ files untouched,
+      so the classic edition looks exactly as before.
+
 v8.7.0 — UPDATE — 2026-07-13 20:57 SAST
   Added:
     - game-hd.html — the HD Remaster (v9.0.0 from the recreation branch):

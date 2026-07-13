@@ -910,6 +910,87 @@ button.danger { background: rgba(239,83,80,.08); }
 #bossChoices .choice:nth-child(4) { animation-delay: .28s; }
 .choice:hover { transform: perspective(800px) translateY(-4px) rotateX(4deg) scale(1.02); }
 
+/* ============================================================
+   HD IDENTITY — the HD Remaster menu is deliberately styled on an
+   ice/aurora palette (vs the classic gold) so you can instantly
+   tell which edition you are in. Visual only.
+   ============================================================ */
+#screen-menu .menu-wrap {
+  background:
+    radial-gradient(1200px 500px at 50% 120%, rgba(79,195,247,.26), transparent 60%),
+    linear-gradient(180deg, #060d22 0%, #0d1f3c 40%, #16406b 75%, #17475a 100%);
+}
+@keyframes auroraSweep {
+  from { transform: translateX(-5%) skewX(-8deg); opacity:.5; }
+  to   { transform: translateX(5%)  skewX(-8deg); opacity:.85; }
+}
+#screen-menu .aurora {
+  position:absolute; inset:-10% -20%; pointer-events:none; mix-blend-mode:screen; opacity:.75;
+  background:
+    linear-gradient(100deg, transparent 30%, rgba(64,224,208,.14) 42%, rgba(79,195,247,.20) 50%, rgba(129,140,248,.14) 58%, transparent 70%),
+    linear-gradient(80deg, transparent 35%, rgba(79,195,247,.10) 48%, rgba(64,224,208,.12) 55%, transparent 68%);
+  animation: auroraSweep 9s ease-in-out infinite alternate;
+}
+#screen-menu .hill  { background:#0f2430; }
+#screen-menu .hill2 { background:#0d2033; }
+/* frost sparkles instead of the classic warm embers */
+#screen-menu .embers {
+  background-image:
+    radial-gradient(3px 3px at 12% 92%, rgba(170,230,255,.9), transparent),
+    radial-gradient(2px 2px at 30% 97%, rgba(120,214,255,.8), transparent),
+    radial-gradient(2.5px 2.5px at 55% 93%, rgba(210,245,255,.9), transparent),
+    radial-gradient(2px 2px at 73% 98%, rgba(120,214,255,.8), transparent),
+    radial-gradient(2.5px 2.5px at 89% 94%, rgba(170,230,255,.85), transparent);
+}
+@keyframes titlePulseHD {
+  from { filter: drop-shadow(0 4px 0 #06263c) drop-shadow(0 0 10px rgba(120,220,255,.3)); }
+  to   { filter: drop-shadow(0 4px 0 #06263c) drop-shadow(0 0 28px rgba(120,220,255,.75)); }
+}
+#screen-menu .title h1 {
+  background: linear-gradient(180deg, #eafaff 0%, #7cd6ff 50%, #2196d6 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: titlePulseHD 2.8s ease-in-out infinite alternate;
+}
+.hd-title-badge {
+  display:inline-block; margin-top:10px;
+  font-size:13px; font-weight:900; letter-spacing:3px; text-transform:uppercase;
+  color:#04212f; background:linear-gradient(180deg,#a9e5ff,#4fc3f7);
+  border:1px solid #d9f3ff; border-radius:999px; padding:5px 16px;
+  box-shadow:0 0 22px rgba(79,195,247,.55);
+}
+#screen-menu .menu-btn {
+  border-color:#7cd6ff; color:#bfe9ff;
+  box-shadow: 0 4px 0 rgba(0,0,0,.4), inset 0 0 12px rgba(79,195,247,.14);
+}
+#screen-menu .menu-btn:hover:not(:disabled) {
+  box-shadow: 0 6px 0 rgba(0,0,0,.4), inset 0 0 18px rgba(79,195,247,.3);
+}
+#screen-menu .menu-btn.play { color:#062b12; border-color:#d6ffd8; }
+#screen-menu .menu-save button { border-color:#7cd6ff; color:#9fdcff; }
+/* Back-to-classic badge: gold, top-right corner — mirrors the classic
+   menu's HD badge and stays away from the main button column so it can
+   never be clicked by accident after a run. */
+.classic-badge {
+  position:absolute; top:14px; right:14px; z-index:4;
+  color:#2b1d00; font-weight:900; letter-spacing:.6px; font-size:13px;
+  background:linear-gradient(180deg,#ffe9a8,#ffca28); border:2px solid #fff3cd;
+  border-radius:999px; padding:10px 16px;
+  box-shadow:0 4px 0 rgba(0,0,0,.35), 0 0 18px rgba(255,202,40,.35);
+}
+.classic-badge:hover:not(:disabled) {
+  background:linear-gradient(180deg,#fff3c9,#ffd54f);
+  box-shadow:0 4px 0 rgba(0,0,0,.35), 0 0 26px rgba(255,202,40,.6);
+  transform:translateY(-1px);
+}
+/* Always-visible edition chip so you instantly know which version this is. */
+.ver-chip {
+  position:absolute; bottom:10px; right:14px; z-index:3; pointer-events:none;
+  font-size:10px; font-weight:900; letter-spacing:1.2px; text-transform:uppercase;
+  color:#7cd6ff; background:rgba(8,18,34,.78); border:1px solid #4fc3f7;
+  border-radius:999px; padding:4px 10px;
+  box-shadow:0 0 14px rgba(79,195,247,.3);
+}
+
 /* Respect users who prefer less motion. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -930,16 +1011,20 @@ button.danger { background: rgba(239,83,80,.08); }
   <section class="screen" id="screen-menu">
     <div class="menu-wrap">
       <div class="stars"></div>
+      <div class="aurora"></div>
       <div class="clouds"></div>
       <div class="moon"></div>
       <div class="hill2"></div>
       <div class="castle"></div>
       <div class="hill"></div>
       <div class="embers"></div>
+      <button class="classic-badge" id="mClassic" title="Switch back to the classic edition — same game, same save">↩ CLASSIC EDITION</button>
+      <div class="ver-chip">HD Remaster</div>
 
       <div class="title">
         <h1>⚔ CLICK DEFENDERS</h1>
-        <p>HD REMASTER · DEFEND THE KEEP · SURVIVE THE WAVES</p>
+        <div class="hd-title-badge">HD Remaster</div>
+        <p>DEFEND THE KEEP · SURVIVE THE WAVES</p>
       </div>
       <div class="menu-buttons">
         <button class="menu-btn play" id="mPlay">▶ PLAY</button>
@@ -947,7 +1032,6 @@ button.danger { background: rgba(239,83,80,.08); }
         <button class="menu-btn" id="mUpgrades">UPGRADES</button>
         <button class="menu-btn" id="mInfo">INFO</button>
         <button class="menu-btn" id="mSettings">SETTINGS</button>
-        <button class="menu-btn" id="mClassic">↩ CLASSIC VERSION</button>
         <button class="menu-btn" id="mQuit">QUIT</button>
       </div>
       <div class="menu-save">
@@ -974,7 +1058,7 @@ button.danger { background: rgba(239,83,80,.08); }
   <section class="screen" id="screen-combat">
     <div class="topbar combat-hud">
       <div class="hud-title">
-        <div class="hud-kicker">Live Run</div>
+        <div class="hud-kicker">Live Run · HD Remaster</div>
         <h2>⚔ Combat Phase</h2>
       </div>
       <div class="stat"><span class="label">Wave</span><span class="value" id="cWave">0</span></div>
@@ -992,7 +1076,7 @@ button.danger { background: rgba(239,83,80,.08); }
       </div>
     </div>
     <div id="battlefield">
-      <div class="battlefield-frame-label">Defend the Keep</div>
+      <div class="battlefield-frame-label">Defend the Keep · HD</div>
       <div class="fortress-panel" id="fortPanel">
         <div class="fort-kicker" id="fortToggle">Castle Status <span class="collapse-caret">▾</span></div>
         <div class="fort-head">
@@ -1405,11 +1489,53 @@ const ENEMY_SPRITES = {
   flying: 'sprites/enemies/flying.png',
   boss: 'sprites/enemies/boss.png',
 };
+/* ---- HD SPRITE REMASTER PIPELINE (visual only) ----
+   Every sprite PNG is re-rendered once, at load time, through an offscreen
+   canvas: a vibrance/contrast boost, a directional light pass (warm sheen
+   from above, cool shading toward the feet) and a soft baked silhouette
+   shadow. The remastered canvas is stored on the image as `img.hd` and
+   drawn in its place; if anything is unsupported (e.g. no ctx.filter) the
+   pipeline degrades to the original PNG. Gameplay sizes are unchanged. */
+function enhanceSprite(img, opts) {
+  opts = opts || {};
+  try {
+    const w = img.naturalWidth, h = img.naturalHeight;
+    if (!w || !h) return null;
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const g = c.getContext("2d");
+    if (!g) return null;
+    // Soft baked silhouette shadow (sprites have transparent padding).
+    if (opts.halo !== false) { g.shadowColor = "rgba(6,10,18,0.45)"; g.shadowBlur = Math.max(w, h) * 0.03; }
+    // Vibrance/contrast boost (skipped cleanly where ctx.filter is missing).
+    if (typeof g.filter === "string") g.filter = "saturate(1.22) contrast(1.07) brightness(1.04)";
+    g.drawImage(img, 0, 0, w, h);
+    if (typeof g.filter === "string") g.filter = "none";
+    g.shadowBlur = 0;
+    // Directional light, clipped to the art: warm from above, cool at the feet.
+    if (opts.light !== false) {
+      g.globalCompositeOperation = "source-atop";
+      const lg = g.createLinearGradient(0, 0, 0, h);
+      lg.addColorStop(0, "rgba(255,244,214,0.18)");
+      lg.addColorStop(0.55, "rgba(255,255,255,0)");
+      lg.addColorStop(1, "rgba(16,28,56,0.20)");
+      g.fillStyle = lg; g.fillRect(0, 0, w, h);
+      g.globalCompositeOperation = "source-over";
+    }
+    return c;
+  } catch (e) { return null; }
+}
+// Remaster an image once it's loaded (or now, if it's already cached).
+function attachHD(img, opts) {
+  const go = () => { const hd = enhanceSprite(img, opts); if (hd) img.hd = hd; };
+  if (img.complete && img.naturalWidth) go(); else img.onload = go;
+}
 function loadSpriteMap(map) {
   const out = {};
   for (const [id, src] of Object.entries(map)) {
     const img = new Image();
     img.src = src;
+    attachHD(img);
     out[id] = img;
   }
   return out;
@@ -1422,6 +1548,10 @@ const FIELD_BG_SRC = 'sprites/background.png';
 const CASTLE_SRC   = 'sprites/castle.png';
 const FIELD_BG_IMG = new Image(); FIELD_BG_IMG.src = FIELD_BG_SRC;
 const CASTLE_IMG   = new Image(); CASTLE_IMG.src   = CASTLE_SRC;
+// Remaster the scenery too: the background gets the colour boost only (no
+// halo/light pass — it fills the whole field), the castle gets the full pass.
+attachHD(FIELD_BG_IMG, { halo: false, light: false });
+attachHD(CASTLE_IMG);
 const imgReady = (im) => im && im.complete && im.naturalWidth > 0;
 
 // Castle damage-state sprites. The keep swaps sprite as base HP drops.
@@ -1434,7 +1564,7 @@ const CASTLE_STATES = [
   { min: 0.33, src: 'sprites/castle/damaged.png' },    // damaged
   { min: 0.0,  src: 'sprites/castle/destroyed.png' },  // critical / near-destroyed
 ];
-CASTLE_STATES.forEach(s => { s.img = new Image(); s.img.src = s.src; });
+CASTLE_STATES.forEach(s => { s.img = new Image(); s.img.src = s.src; attachHD(s.img); });
 function castleImageFor(pct) {
   let st = CASTLE_STATES.find(s => pct >= s.min) || CASTLE_STATES[CASTLE_STATES.length - 1];
   if (imgReady(st.img)) return st.img;
@@ -1780,7 +1910,8 @@ function renderSettings() {
 function drawSprite(img, x, y, w, h) {
   if (!img || !img.complete || !img.naturalWidth) return false;
   setCanvasQuality();
-  ctx.drawImage(img, Math.round(x - w / 2), Math.round(y - h / 2), Math.round(w), Math.round(h));
+  // Prefer the remastered canvas (img.hd) when the pipeline produced one.
+  ctx.drawImage(img.hd || img, Math.round(x - w / 2), Math.round(y - h / 2), Math.round(w), Math.round(h));
   return true;
 }
 function enemySpriteSize(e) {
@@ -2625,7 +2756,7 @@ function render() {
   // Field background: swappable sprites/background.png, colour-graded to sit
   // in the night scene; otherwise the procedural pseudo-3D backdrop.
   if (imgReady(FIELD_BG_IMG)) {
-    ctx.drawImage(FIELD_BG_IMG, 0, 0, CANVAS_W, CANVAS_H);
+    ctx.drawImage(FIELD_BG_IMG.hd || FIELD_BG_IMG, 0, 0, CANVAS_W, CANVAS_H);
     const grade = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
     grade.addColorStop(0, "rgba(8,14,30,0.26)"); grade.addColorStop(0.5, "rgba(8,12,24,0.06)"); grade.addColorStop(1, "rgba(5,16,11,0.16)");
     ctx.fillStyle = grade; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
@@ -2809,7 +2940,7 @@ function drawBase() {
     ctx.fillStyle = 'rgba(0,0,0,.30)';
     ctx.beginPath(); ctx.ellipse(BASE.x, BASE.y + 42, 196, 26, 0, 0, Math.PI * 2); ctx.fill();
     setCanvasQuality();
-    ctx.drawImage(castleImg, Math.round(BASE.x - cW / 2), Math.round(cTop), cW, cH);
+    ctx.drawImage(castleImg.hd || castleImg, Math.round(BASE.x - cW / 2), Math.round(cTop), cW, cH);
     drawTorch(BASE.x - 176, BASE.y - 26, now);
     drawTorch(BASE.x + 176, BASE.y - 26, now);
     drawDefenders();

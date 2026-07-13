@@ -72,9 +72,27 @@ button.danger { border-color: var(--bad); color: var(--bad); }
   box-shadow: 0 6px 0 rgba(0,0,0,.4), inset 0 0 18px rgba(255,215,107,.25);
 }
 .menu-btn.play { color:#062b12; background:linear-gradient(180deg,#8be08f,#4caf50); border-color:#d6ffd8; }
-/* Swap-to-HD button: cyan accent so it stands out from the classic gold. */
-.menu-btn.hd { color:#04212f; background:linear-gradient(180deg,#8fdcff,#4fc3f7); border-color:#d9f3ff; }
-.menu-btn.hd:hover:not(:disabled) { background:linear-gradient(180deg,#a9e5ff,#6fd0ff); box-shadow: 0 6px 0 rgba(0,0,0,.4), inset 0 0 18px rgba(79,195,247,.35); }
+/* Swap-to-HD badge: lives in the menu's top-right corner, away from the
+   main button column, so it can never be clicked by accident after a run. */
+.hd-badge {
+  position:absolute; top:14px; right:14px; z-index:4;
+  color:#04212f; font-weight:900; letter-spacing:.6px; font-size:13px;
+  background:linear-gradient(180deg,#8fdcff,#4fc3f7); border:2px solid #d9f3ff;
+  border-radius:999px; padding:10px 16px;
+  box-shadow:0 4px 0 rgba(0,0,0,.35), 0 0 18px rgba(79,195,247,.35);
+}
+.hd-badge:hover:not(:disabled) {
+  background:linear-gradient(180deg,#a9e5ff,#6fd0ff);
+  box-shadow:0 4px 0 rgba(0,0,0,.35), 0 0 26px rgba(79,195,247,.6);
+  transform:translateY(-1px);
+}
+/* Always-visible edition chip so you instantly know which version this is. */
+.ver-chip {
+  position:absolute; bottom:10px; right:14px; z-index:3; pointer-events:none;
+  font-size:10px; font-weight:900; letter-spacing:1.2px; text-transform:uppercase;
+  color:var(--gold); background:rgba(20,26,42,.75); border:1px solid var(--gold);
+  border-radius:999px; padding:4px 10px;
+}
 
 /* ============================================================
    MAIN MENU — fantasy defence vibe built purely from CSS.
@@ -846,6 +864,8 @@ button.danger { background: rgba(239,83,80,.08); }
       <div class="moon"></div>
       <div class="castle"></div>
       <div class="hill"></div>
+      <button class="hd-badge" id="mHD" title="Switch to the HD Remaster — same game, same save, upgraded visuals">✨ TRY HD REMASTER</button>
+      <div class="ver-chip">Classic Edition</div>
 
       <div class="title">
         <h1>⚔ CLICK DEFENDERS</h1>
@@ -853,7 +873,6 @@ button.danger { background: rgba(239,83,80,.08); }
       </div>
       <div class="menu-buttons">
         <button class="menu-btn play" id="mPlay">▶ PLAY</button>
-        <button class="menu-btn hd" id="mHD" title="Switch to the HD remaster — same game, same save, upgraded visuals">✨ HD REMASTER</button>
         <button class="menu-btn" id="mChallenges">RUN CHALLENGES</button>
         <button class="menu-btn" id="mUpgrades">UPGRADES</button>
         <button class="menu-btn" id="mInfo">INFO</button>
