@@ -26,6 +26,22 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v9.1.0 — UPDATE — 2026-07-13 21:20 SAST
+  Added:
+    - HD identity menu theme: ice/aurora palette with an animated aurora
+      sweep, cyan gradient title with an "HD REMASTER" badge, frost
+      sparkles, cyan menu buttons, an edition chip (bottom-right), and
+      "HD" markers on the combat HUD and battlefield label.
+    - HD sprite remaster pipeline: every sprite PNG is re-rendered at
+      load time with a vibrance/contrast boost, a directional light pass
+      and a soft baked silhouette shadow (units, enemies, castle damage
+      states, background). Falls back to the original PNGs when canvas
+      filters are unavailable; the sprites/ files themselves are untouched.
+  Housekeeping:
+    - Synced from the served branch's game-hd.html (v8.8.0) minus the
+      classic-swap badge, which only exists where both editions live
+      side by side.
+
 v9.0.0 — MAJOR — 2026-07-13 20:42 SAST
   Added:
     - Visual-only particle system: impact sparks per damage type, enemy
