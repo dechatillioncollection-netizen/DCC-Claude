@@ -72,17 +72,32 @@ talents, talent points.
 
 | Thing | Value |
 |-------|-------|
-| Logical field (`CANVAS_W`×`CANVAS_H`) | **1600 × 900** |
+| Logical field (`CANVAS_W`×`CANVAS_H`) | **1600 × 900** landscape / **900 × 1600** portrait (phones) |
 | Base | 300 × 58 px box, centred at bottom (`BASE.y = CANVAS_H − 42`) |
-| `BASE_LINE` | `BASE.y − 29` ≈ **829** — the y where enemies start damaging the base |
-| Enemy movement | straight down at the enemy's speed |
+| `BASE_LINE` | `BASE.y − 29` — the y where enemies start damaging the base |
+| Enemy movement | **time-to-castle**: `e.ttc` seconds from spawn to the wall |
 | Frame step | `dt` clamped to ≤ 0.05 s |
 
-The field was enlarged from the original 740×540 to 1600×900. To keep
-pacing, enemy speeds are multiplied by
-`COMPACT_FIELD_SPEED_SCALE = BASE_LINE / 481` (≈1.72) so they still cross
-the taller field in roughly the same time, and attack cooldowns use
-`DEFAULT_ATTACK_COOLDOWN_SCALE` (0.90).
+**Time-to-castle movement.** Enemies don't carry a pixel speed. At spawn
+each gets `ttc = enemyTravelTime(type) / waveSpeedMul(wave) ·
+speedAugTimeMul()` — the SECONDS it takes to march from spawn (`SPAWN_Y`
+= −20) to `BASE_LINE`. `enemyTravelTime` derives the base seconds from the
+`ENEMY_TYPES.spd` data table against the fixed 1600×900 reference
+(`REF_TRAVEL_DIST / (spd · REF_SPEED_SCALE)`), so desktop pacing equals the
+old speed system exactly. Per frame the enemy advances
+`fieldTravelDist() / ttc · dt` (slows scale the rate down), so **any arena
+size takes the same seconds to cross — difficulty is size-independent**.
+Speed augments (buff/challenge `enemySpeedMul`) convert to time directly
+via `speedAugTimeMul`: a combined "+X% speed" means X% *less time*
+(×1.25 → time ×0.75), clamped to [0.2, 3]. Wave scaling divides the time
+(unbounded growth, so the direct-subtraction rule can't apply to it).
+
+**Dynamic arena (phone support).** `applyFieldSize()` picks the field for
+the current orientation (portrait → 900×1600), recomputing `BASE`,
+`BASE_LINE`, the procedural scenery and the canvas backing store. It runs
+at boot, on resize/rotation and via `setState`, but **never during
+COMBAT/BOSS_REWARD** — a run keeps its arena until it ends. Attack
+cooldowns still use `DEFAULT_ATTACK_COOLDOWN_SCALE` (0.90).
 
 **Sprites.** Units and enemies draw the pre-baked HD set from
 `sprites/hd/units/<id>.png` and `sprites/hd/enemies/<type>.png`

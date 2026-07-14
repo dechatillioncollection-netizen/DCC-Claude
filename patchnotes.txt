@@ -26,6 +26,20 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v9.4.0 — UPDATE — 2026-07-14 09:48 SAST
+  Added:
+    - TIME-TO-CASTLE movement: enemies carry `ttc` (seconds from spawn to
+      the wall) instead of a pixel speed — derived from the same data-table
+      speeds, so 1600×900 pacing is identical to floating-point precision.
+      Wave scaling divides the time; speed augments adjust it directly
+      (+25% speed = 25% less time). Slows unchanged.
+    - Phone-scaling arena: portrait screens play on a 900×1600 logical
+      field (landscape keeps 1600×900) with identical difficulty thanks to
+      ttc. Re-fits on rotation/resize, never mid-combat.
+    - Phone/touch UI: safe-area support, touch-friendly controls, compact
+      HUD, top-pinned collapsed damage meter, de-overlapped menu layout.
+      Synced from the served branch (v8.11.0).
+
 v9.3.1 — HOTFIX — 2026-07-14 02:58 SAST
   Fixed:
     - HD sprite load time: the generated set is now WebP (q0.9 with
