@@ -73,7 +73,12 @@ async function bake(dataURL, mode, opts) {
   let clipped = false;
   for (let x = 0; x < cw && !clipped; x++) if (d[x * 4 + 3] > 40 || d[((ch - 1) * cw + x) * 4 + 3] > 40) clipped = true;
   for (let y = 0; y < ch && !clipped; y++) if (d[y * cw * 4 + 3] > 40 || d[(y * cw + cw - 1) * 4 + 3] > 40) clipped = true;
-  return { url: c.toDataURL("image/png"), clipped };
+  // WebP keeps the whole set light enough to load fast on GitHub Pages
+  // (visually lossless at q0.9, alpha preserved). Fail loudly if the
+  // browser silently fell back to PNG encoding.
+  const url = c.toDataURL("image/webp", opts.q != null ? opts.q : 0.9);
+  if (!url.startsWith("data:image/webp")) throw new Error("browser did not encode WebP");
+  return { url, clipped };
 }
 window.bake = bake;`;
 
@@ -86,24 +91,24 @@ window.bake = bake;`;
   const jobs = [];
   for (const id of UNITS) jobs.push({
     src: "sprites/units/" + id + ".png",
-    outs: [["sprites/hd/units/" + id + ".png", "idle"], ["sprites/hd/units/" + id + "_shoot.png", "shoot"]],
+    outs: [["sprites/hd/units/" + id + ".webp", "idle"], ["sprites/hd/units/" + id + "_shoot.webp", "shoot"]],
   });
   for (const t of ENEMIES) jobs.push({
     src: "sprites/enemies/" + t + ".png",
-    outs: [["sprites/hd/enemies/" + t + ".png", "idle"], ["sprites/hd/enemies/" + t + "_walk.png", "walk"]],
+    outs: [["sprites/hd/enemies/" + t + ".webp", "idle"], ["sprites/hd/enemies/" + t + "_walk.webp", "walk"]],
   });
   // Scenery: castle damage states keep native size, no pose, no halo (the
   // game draws its own ground shadow); the background gets the colour
-  // grade only, at native size.
+  // grade only, at native size and a slightly stronger compression.
   for (const c of ["castle/full", "castle/damaged", "castle/destroyed", "castle"]) jobs.push({
     src: "sprites/" + c + ".png",
-    outs: [["sprites/hd/" + c + ".png", "idle"]],
+    outs: [["sprites/hd/" + c + ".webp", "idle"]],
     opts: { out: 0, cs: 1, halo: false },
   });
   jobs.push({
     src: "sprites/background.png",
-    outs: [["sprites/hd/background.png", "idle"]],
-    opts: { out: 0, cs: 1, halo: false, light: false },
+    outs: [["sprites/hd/background.webp", "idle"]],
+    opts: { out: 0, cs: 1, halo: false, light: false, q: 0.85 },
   });
 
   let wrote = 0, warned = 0;

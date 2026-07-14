@@ -6,15 +6,15 @@ GENERATED FILES — do not hand-edit. Rebuild with:
 from the classic sprites/ art.)
 
 Each unit/enemy has two frames:
-  units/<id>.png          idle (HD remaster of the classic sprite)
-  units/<id>_shoot.png    attack pose — shown briefly when that slot fires
-  enemies/<type>.png      idle
-  enemies/<type>_walk.png step pose — alternated with idle while marching
+  units/<id>.webp          idle (HD remaster of the classic sprite)
+  units/<id>_shoot.webp    attack pose — shown briefly when that slot fires
+  enemies/<type>.webp      idle
+  enemies/<type>_walk.webp step pose — alternated with idle while marching
 
 Scenery (single frame, native resolution):
-  castle/full|damaged|destroyed.png   castle damage states
-  castle.png                          legacy single castle
-  background.png                      field background (colour grade only)
+  castle/full|damaged|destroyed.webp   castle damage states
+  castle.webp                          legacy single castle
+  background.webp                      field background (colour grade only)
 
 All files are OPTIONAL at runtime: a missing idle falls back to the
 classic PNG (remastered on the fly), and a missing pose frame simply

@@ -26,6 +26,18 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.10.1 — HOTFIX — 2026-07-14 02:52 SAST
+  Fixed:
+    - HD Remaster load time: the generated HD sprites were unoptimised
+      PNGs (9.7 MB total — bigger than the whole classic game), so on a
+      hosted connection the art was often still downloading when Play was
+      pressed. The generator now encodes WebP (visually lossless q0.9,
+      alpha preserved; background q0.85), shrinking the entire HD set to
+      1.9 MB — actually lighter than the classic sprites (5.5 MB). Whole
+      HD page + all assets now settle in well under a second locally and
+      load ~5× faster over the network. Fallback behaviour is unchanged:
+      any missing/unsupported file still drops back to the classic PNG.
+
 v8.10.0 — UPDATE — 2026-07-14 02:30 SAST
   Added:
     - Scenery joins the pre-baked HD set: castle damage states, the legacy
