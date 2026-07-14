@@ -1016,6 +1016,11 @@ button.danger { background: rgba(239,83,80,.08); }
   .stat .value { font-size: 13px; }
   .hp-stat { min-width: 108px !important; }
   .phase-pill { display: none; }               /* redundant at phone size */
+  /* Keep the combat HUD to one compact row so the whole field (castle +
+     unit stat cards) fits on a phone without scrolling. Buff effects are
+     shown on the per-unit stat cards instead of as HUD chips. */
+  #screen-combat .stat:has(#combatBuffs),
+  #screen-combat .stat:has(#cClick) { display: none; }
   .combat-actions #speedBtn { padding: 9px 12px; }
   .battlefield-frame-label { font-size: 9px; padding: 4px 7px; }
   /* Keep the meter at the TOP of the field (the ≤820px rule drops it to the
@@ -2231,11 +2236,15 @@ function engineerBuffMul() {
   return 1 + n * unitStat("engineer", "buff") * (1 + talentEffect("t_eng_buff"));
 }
 // ---- Formation (where equipped units sit/fire) & knight field posts ----
-const DEFENDER_SPREAD = 380;                 // total width the equipped units span on the wall
-function defenderRowY() { return BASE.y - 38; }
+// Formation widened + raised so each defender has room for its augment
+// stats card underneath (capped so it always fits narrow portrait arenas).
+const DEFENDER_SPREAD = 520;                 // total width the equipped units span on the wall
+function defenderSpread() { return Math.min(DEFENDER_SPREAD, CANVAS_W - 260); }
+function defenderRowY() { return BASE.y - 58; }
 function defenderPos(i, n) {
-  const step = n > 1 ? DEFENDER_SPREAD / (n - 1) : 0;
-  return { x: BASE.x - DEFENDER_SPREAD / 2 + i * step, y: defenderRowY() + (i % 2 ? 0 : -4) };
+  const spread = defenderSpread();
+  const step = n > 1 ? spread / (n - 1) : 0;
+  return { x: BASE.x - spread / 2 + i * step, y: defenderRowY() + (i % 2 ? 0 : -4) };
 }
 // A slot's shots originate from that slot's spot on the wall.
 function unitPost(slot) {
@@ -3211,6 +3220,58 @@ function drawBase() {
 // Each idles with a gentle bob, and swaps to its `_shoot` pose frame (with a
 // tiny recoil kick) for a beat whenever that slot fires — drawing only;
 // shots still originate from the slot's true unitPost() position.
+/* ---- Augment stats cards ----
+   A small card under each equipped defender showing the COMBINED bonuses
+   from this run's augments (boss buffs, challenges, engineer aura and
+   temporary bounty/overcharge boosts). The numbers come from the exact
+   same functions combat uses, so stacking always reads correctly:
+   - attack/cast speed augments are ADDITIVE — two +50% buffs show +100%
+     (100% base + 100% augment = a 200% rate);
+   - damage buffs are MULTIPLICATIVE — ×1.5 then ×1.5 shows +125%
+     (100% base ×1.5 ×1.5 = 225%).
+   Talents and unit levels are the unit's baseline and are NOT shown. */
+const UNIT_DMG_TYPE = { archer: "archer", ranger: "archer", mage: "mage", cannon: "cannon", icewizard: "ice", firewizard: "fire", knight: "physical", assassin: "physical" };
+function pctTxt(x) { return (x >= 0 ? "+" : "−") + Math.round(Math.abs(x) * 100) + "%"; }
+function augLine(val, label, color) { return { txt: pctTxt(val) + " " + label, color: val < 0 ? "#ff8a80" : color }; }
+function unitAugmentLines(id) {
+  const lines = [];
+  // Damage: run-scoped multiplier = globalAllDmgMul with the talent term
+  // factored out, times this unit's damage-type multiplier (curses show
+  // as negative, e.g. Pyromancer's half physical).
+  const dmgType = UNIT_DMG_TYPE[id];
+  if (dmgType) {
+    const aug = (globalAllDmgMul() / (1 + talentEffect("all_dmg"))) * typeMul(dmgType) - 1;
+    if (Math.abs(aug) >= 0.005) lines.push(augLine(aug, "dmg", dmgColor(dmgType)));
+  }
+  // Attack/cast speed: additive augments, shown as one combined number.
+  let spd = buffSum("atkSpeedAdd") + chAdd("atkSpeedAdd") + (run && run.bonusSpdT > 0 ? 0.5 : 0);
+  if (id === "priest") spd += buffSum("priestSpeedAdd");
+  if (Math.abs(spd) >= 0.005) lines.push(augLine(spd, (id === "priest" || id === "engineer") ? "cast spd" : "atk spd", "#7cd6ff"));
+  // Per-unit specialty augments.
+  switch (id) {
+    case "archer": { const ex = Math.floor(buffSum("extraShots")); if (ex) lines.push({ txt: "+" + ex + " shot" + (ex > 1 ? "s" : ""), color: DMG.archer }); break; }
+    case "mage": { const m = buffProd("mageSplashMul") - 1; if (Math.abs(m) >= 0.005) lines.push(augLine(m, "splash", DMG.mage)); break; }
+    case "icewizard": { const s = buffSum("slowAdd"); if (s) lines.push(augLine(s, "slow", DMG.ice)); break; }
+    case "firewizard": { const b = buffProd("burnDurMul") - 1; if (Math.abs(b) >= 0.005) lines.push(augLine(b, "burn dur", DMG.fire)); break; }
+    case "priest": { const h = buffProd("priestHealMul") - 1; if (Math.abs(h) >= 0.005) lines.push(augLine(h, "heal", DMG.heal)); break; }
+    case "engineer": { const e = engineerBuffMul() - 1; if (e >= 0.005) lines.push(augLine(e, "team dmg", "#ffd76b")); break; }
+  }
+  return lines.slice(0, 3);
+}
+function drawStatCard(cx, top, lines) {
+  const w = 96, lh = 12, h = 8 + lines.length * lh;
+  ctx.save();
+  ctx.fillStyle = "rgba(7,11,20,0.8)";
+  rrect(cx - w / 2, top, w, h, 6); ctx.fill();
+  ctx.strokeStyle = "rgba(124,214,255,0.35)"; ctx.lineWidth = 1;
+  rrect(cx - w / 2, top, w, h, 6); ctx.stroke();
+  ctx.font = '700 10px "Segoe UI", sans-serif'; ctx.textAlign = "center";
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillStyle = lines[i].color;
+    ctx.fillText(lines[i].txt, cx, top + 14 + i * lh);
+  }
+  ctx.restore();
+}
 function drawDefenders() {
   ctx.font = '20px sans-serif'; ctx.textAlign = 'center';
   const now = performance.now();
@@ -3223,10 +3284,12 @@ function drawDefenders() {
     const firing = run && run.muzzle && run.muzzle[i] > 0 && spriteReady(shootImg);
     const frame = firing ? shootImg : UNIT_IMAGES[id];
     const kick = firing ? 2 : 0;   // slight recoil while the shoot pose shows
+    const support = (id === "priest" || id === "engineer");
     ctx.fillStyle = 'rgba(12,15,23,.55)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
     if (!drawSprite(frame, p.x, p.y + bob + kick, 50, 50)) ctx.fillText(UNITS[id].emoji, p.x, p.y + 7 + bob);
     // Overwatch: charge bar under each damage unit (support units auto-heal).
-    if (mode === "overwatch" && id !== "priest" && id !== "engineer") {
+    const hasChargeBar = mode === "overwatch" && !support;
+    if (hasChargeBar) {
       const full = overwatchChargeTime(id), k = clamp((run.charge[i] || 0) / full, 0, 1);
       ctx.fillStyle = "rgba(5,8,14,0.8)"; rrect(p.x - 23.5, p.y + 24.5, 47, 9, 4); ctx.fill();
       if (k > 0) {
@@ -3235,6 +3298,12 @@ function drawDefenders() {
         ctx.fillStyle = g; rrect(p.x - 22, p.y + 26, Math.max(2, 44 * k), 6, 3); ctx.fill();
       }
     }
+    // Augment stats card under the defender (below the charge bar if shown).
+    if (run && run.active) {
+      const lines = unitAugmentLines(id);
+      if (lines.length) drawStatCard(p.x, p.y + (hasChargeBar ? 37 : 26), lines);
+    }
+    ctx.font = '20px sans-serif';   // restore for the next defender's emoji fallback
   }
 }
 // Trapmaster: draw placed traps as fading coloured zones with their icon.
