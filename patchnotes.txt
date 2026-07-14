@@ -26,6 +26,16 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v9.5.0 — UPDATE — 2026-07-14 13:40 SAST
+  Added:
+    - Per-unit augment stat cards under a wider (520px), raised defender
+      formation: combined damage / attack-speed / specialty bonuses from
+      run augments, using the exact combat math (speed adds, damage
+      multiplies; curses in red; temp boosts live).
+  Changed:
+    - Phone combat HUD compacts to one row; buff effects read from the
+      unit cards. Synced from the served branch (v8.12.0).
+
 v9.4.0 — UPDATE — 2026-07-14 09:48 SAST
   Added:
     - TIME-TO-CASTLE movement: enemies carry `ttc` (seconds from spawn to
