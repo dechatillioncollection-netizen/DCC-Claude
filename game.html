@@ -1545,13 +1545,13 @@ function loadPoseFrame(src) {
 function spriteReady(img) { return !!(img && !img.missing && img.complete && img.naturalWidth); }
 const UNIT_IMAGES = {}, UNIT_SHOOT_IMAGES = {};
 for (const [uid, usrc] of Object.entries(UNIT_SPRITES)) {
-  UNIT_IMAGES[uid] = loadHDSprite(HD_UNIT_DIR + uid + ".png", usrc);
-  UNIT_SHOOT_IMAGES[uid] = loadPoseFrame(HD_UNIT_DIR + uid + "_shoot.png");
+  UNIT_IMAGES[uid] = loadHDSprite(HD_UNIT_DIR + uid + ".webp", usrc);
+  UNIT_SHOOT_IMAGES[uid] = loadPoseFrame(HD_UNIT_DIR + uid + "_shoot.webp");
 }
 const ENEMY_IMAGES = {}, ENEMY_WALK_IMAGES = {};
 for (const [etype, esrc] of Object.entries(ENEMY_SPRITES)) {
-  ENEMY_IMAGES[etype] = loadHDSprite(HD_ENEMY_DIR + etype + ".png", esrc);
-  ENEMY_WALK_IMAGES[etype] = loadPoseFrame(HD_ENEMY_DIR + etype + "_walk.png");
+  ENEMY_IMAGES[etype] = loadHDSprite(HD_ENEMY_DIR + etype + ".webp", esrc);
+  ENEMY_WALK_IMAGES[etype] = loadPoseFrame(HD_ENEMY_DIR + etype + "_walk.webp");
 }
 // Two-frame march: the frame flips every 34px of ground covered, so fast
 // enemies scurry, slowed enemies visibly trudge, and flyers flap. Purely
@@ -1568,8 +1568,8 @@ const CASTLE_SRC   = 'sprites/castle.png';
 // Scenery uses the pre-baked HD files too, with the same per-file fallback
 // to the classic PNG + runtime remaster (colour boost only for the
 // background — it fills the whole field).
-const FIELD_BG_IMG = loadHDSprite('sprites/hd/background.png', FIELD_BG_SRC, { halo: false, light: false });
-const CASTLE_IMG   = loadHDSprite('sprites/hd/castle.png', CASTLE_SRC);
+const FIELD_BG_IMG = loadHDSprite('sprites/hd/background.webp', FIELD_BG_SRC, { halo: false, light: false });
+const CASTLE_IMG   = loadHDSprite('sprites/hd/castle.webp', CASTLE_SRC);
 const imgReady = (im) => im && im.complete && im.naturalWidth > 0;
 
 // Castle damage-state sprites. The keep swaps sprite as base HP drops.
@@ -1582,7 +1582,7 @@ const CASTLE_STATES = [
   { min: 0.33, src: 'sprites/castle/damaged.png' },    // damaged
   { min: 0.0,  src: 'sprites/castle/destroyed.png' },  // critical / near-destroyed
 ];
-CASTLE_STATES.forEach(s => { s.img = loadHDSprite(s.src.replace('sprites/', 'sprites/hd/'), s.src); });
+CASTLE_STATES.forEach(s => { s.img = loadHDSprite(s.src.replace('sprites/', 'sprites/hd/').replace('.png', '.webp'), s.src); });
 function castleImageFor(pct) {
   let st = CASTLE_STATES.find(s => pct >= s.min) || CASTLE_STATES[CASTLE_STATES.length - 1];
   if (imgReady(st.img)) return st.img;
@@ -1594,7 +1594,7 @@ function spriteTag(src, cls, alt) {
 // Upgrade-screen unit icon: prefers the HD sprite, with an inline fallback
 // to the classic PNG if the HD file is missing.
 function unitIconTag(id, alt) {
-  return '<img class="sprite-icon" src="' + HD_UNIT_DIR + id + '.png" alt="' + alt +
+  return '<img class="sprite-icon" src="' + HD_UNIT_DIR + id + '.webp" alt="' + alt +
          '" onerror="this.onerror=null;this.src=\'' + UNIT_SPRITES[id] + '\'">';
 }
 

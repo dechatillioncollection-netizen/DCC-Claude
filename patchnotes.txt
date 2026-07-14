@@ -26,6 +26,13 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v9.3.1 — HOTFIX — 2026-07-14 02:58 SAST
+  Fixed:
+    - HD sprite load time: the generated set is now WebP (q0.9 with
+      alpha; background q0.85) instead of unoptimised PNG — 9.7 MB down
+      to 1.9 MB, lighter than the classic sprites. Same per-file fallback
+      to the classic PNGs. Synced from the served branch (v8.10.1).
+
 v9.3.0 — UPDATE — 2026-07-14 02:35 SAST
   Added:
     - Scenery joins the pre-baked HD set: castle damage states, the legacy
