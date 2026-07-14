@@ -1541,11 +1541,12 @@ function attachHD(img, opts) {
    that sprite doesn't animate. */
 const HD_UNIT_DIR = "sprites/hd/units/", HD_ENEMY_DIR = "sprites/hd/enemies/";
 // Load the pre-baked HD sprite, falling back to the classic PNG (with the
-// runtime remaster applied) if the HD file is missing.
-function loadHDSprite(hdSrc, classicSrc) {
+// runtime remaster applied — fallbackOpts forwards to attachHD) if the HD
+// file is missing.
+function loadHDSprite(hdSrc, classicSrc, fallbackOpts) {
   const img = new Image();
   let fellBack = false;
-  img.onerror = () => { if (fellBack) return; fellBack = true; img.src = classicSrc; attachHD(img); };
+  img.onerror = () => { if (fellBack) return; fellBack = true; img.src = classicSrc; attachHD(img, fallbackOpts); };
   img.src = hdSrc;
   return img;
 }
@@ -1580,12 +1581,11 @@ function enemyFrame(e) {
 // Both degrade gracefully to the old procedural drawing if the file is missing.
 const FIELD_BG_SRC = 'sprites/background.png';
 const CASTLE_SRC   = 'sprites/castle.png';
-const FIELD_BG_IMG = new Image(); FIELD_BG_IMG.src = FIELD_BG_SRC;
-const CASTLE_IMG   = new Image(); CASTLE_IMG.src   = CASTLE_SRC;
-// Remaster the scenery too: the background gets the colour boost only (no
-// halo/light pass — it fills the whole field), the castle gets the full pass.
-attachHD(FIELD_BG_IMG, { halo: false, light: false });
-attachHD(CASTLE_IMG);
+// Scenery uses the pre-baked HD files too, with the same per-file fallback
+// to the classic PNG + runtime remaster (colour boost only for the
+// background — it fills the whole field).
+const FIELD_BG_IMG = loadHDSprite('sprites/hd/background.png', FIELD_BG_SRC, { halo: false, light: false });
+const CASTLE_IMG   = loadHDSprite('sprites/hd/castle.png', CASTLE_SRC);
 const imgReady = (im) => im && im.complete && im.naturalWidth > 0;
 
 // Castle damage-state sprites. The keep swaps sprite as base HP drops.
@@ -1598,7 +1598,7 @@ const CASTLE_STATES = [
   { min: 0.33, src: 'sprites/castle/damaged.png' },    // damaged
   { min: 0.0,  src: 'sprites/castle/destroyed.png' },  // critical / near-destroyed
 ];
-CASTLE_STATES.forEach(s => { s.img = new Image(); s.img.src = s.src; attachHD(s.img); });
+CASTLE_STATES.forEach(s => { s.img = loadHDSprite(s.src.replace('sprites/', 'sprites/hd/'), s.src); });
 function castleImageFor(pct) {
   let st = CASTLE_STATES.find(s => pct >= s.min) || CASTLE_STATES[CASTLE_STATES.length - 1];
   if (imgReady(st.img)) return st.img;
@@ -1606,6 +1606,12 @@ function castleImageFor(pct) {
 }
 function spriteTag(src, cls, alt) {
   return '<img class="' + cls + ' sprite-icon" src="' + src + '" alt="' + alt + '">';
+}
+// Upgrade-screen unit icon: prefers the HD sprite, with an inline fallback
+// to the classic PNG if the HD file is missing.
+function unitIconTag(id, alt) {
+  return '<img class="sprite-icon" src="' + HD_UNIT_DIR + id + '.png" alt="' + alt +
+         '" onerror="this.onerror=null;this.src=\'' + UNIT_SPRITES[id] + '\'">';
 }
 
 function unitStat(id, key) {
@@ -2334,6 +2340,8 @@ function commandKnightTick(dt) {
   run.knightCmdTimer -= dt;
   if (run.knightCmdTimer > 0) return;
   run.knightCmdTimer = (unitStat("knight", "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) / attackSpeedMul("knight");
+  // Flash the knight slots' shoot pose on each held-post strike (visual only).
+  if (run.muzzle) persist.equipped.forEach((id, i) => { if (id === "knight") run.muzzle[i] = 0.18; });
   const r = knightRadius(), slow = unitStat("knight", "slow") * (1 + talentEffect("t_knight_block"));
   const dmg = unitStat("knight", "dmg") * unitTalentBonus("knight", "dmg").mul * globalAllDmgMul() * nk;
   for (const t of run.enemies) if (Math.hypot(t.x - run.knightCmd.x, t.y - run.knightCmd.y) <= r + t.r) { damageEnemy(t, dmg, { type: "physical", src: "knight" }); applySlow(t, slow, 0.9); }
@@ -2605,7 +2613,7 @@ function update(dt) {
       if (unitTimers[i] <= 0) { unitTimers[i] = cd; unitAttack("knight", i); }   // normal post attacks
       const full = overwatchChargeTime(id);
       run.charge[i] = (run.charge[i] || 0) + dt;
-      if (run.charge[i] >= full) { run.charge[i] = 0; knightSlash(); }           // charged slash
+      if (run.charge[i] >= full) { run.charge[i] = 0; if (run.muzzle) run.muzzle[i] = 0.25; knightSlash(); }   // charged slash (+ shoot pose)
       continue;
     }
     if (mode === "overwatch" && !support) {
@@ -3125,12 +3133,18 @@ function drawTraps() {
   }
 }
 // Command Mode: the knight's held AoE post, drawn where it was last commanded.
+// The knight's field/command posts strike on the equipped knight slots'
+// cadence, so they share those slots' shoot-pose timers (visual only).
+function knightFrame() {
+  const firing = run && run.muzzle && persist.equipped.some((id, i) => id === "knight" && run.muzzle[i] > 0);
+  return (firing && spriteReady(UNIT_SHOOT_IMAGES.knight)) ? UNIT_SHOOT_IMAGES.knight : UNIT_IMAGES.knight;
+}
 function drawCommandKnight() {
   const p = run.knightCmd, r = knightRadius();
   ctx.fillStyle = "rgba(239,83,83,0.12)"; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = "rgba(255,95,95,0.6)"; ctx.lineWidth = 2; ctx.setLineDash([9, 7]); ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1;
   ctx.fillStyle = 'rgba(12,15,23,.5)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 24, 24, 8, 0, 0, Math.PI * 2); ctx.fill();
-  if (!drawSprite(UNIT_IMAGES.knight, p.x, p.y, 56, 56)) { ctx.fillStyle = '#cdd6e6'; ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🛡️', p.x, p.y + 9); }
+  if (!drawSprite(knightFrame(), p.x, p.y, 56, 56)) { ctx.fillStyle = '#cdd6e6'; ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🛡️', p.x, p.y + 9); }
   ctx.fillStyle = "rgba(255,150,150,0.92)"; ctx.font = "bold 14px sans-serif"; ctx.textAlign = "center"; ctx.fillText("GUARD", p.x, p.y + r - 10);
 }
 /* Knight field posts: each active knight projects an AoE (damages + slows).
@@ -3145,7 +3159,7 @@ function drawKnightZone() {
     ctx.setLineDash([]); ctx.lineWidth = 1;
     // knight figure at the centre
     ctx.fillStyle = 'rgba(12,15,23,.5)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 24, 24, 8, 0, 0, Math.PI * 2); ctx.fill();
-    if (!drawSprite(UNIT_IMAGES.knight, p.x, p.y, 56, 56)) { ctx.fillStyle = '#cdd6e6'; ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🛡️', p.x, p.y + 9); }
+    if (!drawSprite(knightFrame(), p.x, p.y, 56, 56)) { ctx.fillStyle = '#cdd6e6'; ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🛡️', p.x, p.y + 9); }
     ctx.fillStyle = "rgba(255,150,150,0.92)"; ctx.font = "bold 14px sans-serif"; ctx.textAlign = "center";
     ctx.fillText("AOE", p.x, p.y + r - 10);
   }
@@ -3443,7 +3457,7 @@ function renderEquip() {
     slot.setAttribute("data-slot", i === 0 ? "Lead Slot" : "Slot " + (i + 1));
     if (id) {
       const u = UNITS[id], lvl = persist.ownedUnits[id];
-      slot.innerHTML = spriteTag(UNIT_SPRITES[id], 'sprite-icon', u.name) + '<div class="sname">'+u.name+'</div><div class="slvl">Lv '+lvl+'</div><div class="role">'+unitRole(id)+'</div><div class="slot-note">'+(i === 0 ? 'Opens the formation' : 'Ready for battle')+'</div>';
+      slot.innerHTML = unitIconTag(id, u.name) + '<div class="sname">'+u.name+'</div><div class="slvl">Lv '+lvl+'</div><div class="role">'+unitRole(id)+'</div><div class="slot-note">'+(i === 0 ? 'Opens the formation' : 'Ready for battle')+'</div>';
       const btn = document.createElement("button"); btn.textContent = "Unequip"; btn.onclick = () => unequipSlot(i);
       slot.appendChild(btn);
     } else slot.innerHTML = '<div class="empty-plus">＋</div><div style="color:var(--muted); font-weight:700;">empty</div><div class="role">Open Slot</div><div class="slot-note">Equip a defender from your roster.</div>';
@@ -3460,7 +3474,7 @@ function renderShop() {
     const slotsFull = persist.equipped.length >= 5;
     const card = document.createElement("div"); card.className = "card unit-card";
     card.innerHTML =
-      '<div class="row">' + spriteTag(UNIT_SPRITES[id], 'sprite-icon', u.name) + '<div style="flex:1"><div class="title">'+u.name+
+      '<div class="row">' + unitIconTag(id, u.name) + '<div style="flex:1"><div class="title">'+u.name+
       ' <span class="owned-chip">Owned: '+owned+'</span>' + (equippedCount ? ' <span class="tag eq">equipped ×'+equippedCount+'</span>' : '') + '</div>'+
       '<div class="desc">'+u.desc+'</div>'+
       '<div class="stat-chips"><span class="stat-chip">Role '+unitRole(id)+'</span><span class="stat-chip">Lv '+owned+'</span><span class="stat-chip">DMG '+fmt(unitStat(id,"dmg"))+'</span><span class="stat-chip">CD '+unitStat(id,"cd").toFixed(2)+'s</span>'+unitExtraChips(id)+'</div></div>'+
