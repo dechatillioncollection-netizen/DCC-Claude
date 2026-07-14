@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Click Defenders HD — Cookie-Clicker Base Defence</title>
 <style>
 /* ============================================================
@@ -991,6 +991,56 @@ button.danger { background: rgba(239,83,80,.08); }
   box-shadow:0 0 14px rgba(79,195,247,.3);
 }
 
+/* ============================================================
+   PHONE / TOUCH SUPPORT — the HD Remaster scales to phones.
+   In portrait the game itself switches to a 900×1600 logical arena
+   (see applyFieldSize in the script; difficulty is unchanged because
+   enemies move on a time-to-castle basis). These rules make the UI
+   around the battlefield touch-friendly and compact.
+   ============================================================ */
+#canvas, button, .upg-tab, .choice, .challenge-card, .slot { touch-action: manipulation; }
+#canvas { -webkit-tap-highlight-color: transparent; }
+@media (max-width: 700px) {
+  /* Respect notches / home indicators on phones (viewport-fit=cover). */
+  #app {
+    padding: 8px;
+    padding-left: max(8px, env(safe-area-inset-left, 0px));
+    padding-right: max(8px, env(safe-area-inset-right, 0px));
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  }
+  .topbar.combat-hud, .topbar.upgrade-hud { padding: 8px 10px; gap: 8px; border-radius: 14px; }
+  .hud-title, .upgrade-title { min-width: 0; }
+  .hud-title h2, .upgrade-title h2 { font-size: 15px; }
+  .hud-kicker, .upgrade-kicker { font-size: 8px; }
+  #screen-combat .stat, #screen-upgrades .topbar .stat { min-width: 66px; padding: 6px 8px; border-radius: 10px; }
+  .stat .value { font-size: 13px; }
+  .hp-stat { min-width: 108px !important; }
+  .phase-pill { display: none; }               /* redundant at phone size */
+  .combat-actions #speedBtn { padding: 9px 12px; }
+  .battlefield-frame-label { font-size: 9px; padding: 4px 7px; }
+  /* Keep the meter at the TOP of the field (the ≤820px rule drops it to the
+     bottom, where it sat on the castle) and start it collapsed (see init). */
+  #dmgMeter { top: 44px; bottom: auto; right: 8px; width: 148px; padding: 6px; font-size: 10px; }
+  .fortress-panel { display: none; }           /* fortress HP already lives in the HUD */
+  .combat-tip { font-size: 11px; padding: 8px 10px; }
+  #spellBar .spell-btn { min-width: 40%; padding: 13px 8px; }
+  .menu-btn { width: 88vw; font-size: 18px; padding: 15px 20px; }
+  /* Clear the corner badge and shrink the moon so nothing crowds the title. */
+  #screen-menu .title { margin-top: 64px; }
+  #screen-menu .title h1 { font-size: 34px; letter-spacing: 1px; }
+  #screen-menu .title p { font-size: 11px; }
+  #screen-menu .moon { width: 44px; height: 44px; top: 3%; left: 6%; right: auto; }
+  .hd-title-badge { font-size: 11px; letter-spacing: 2px; }
+  .hd-badge, .classic-badge { top: 10px; right: 10px; padding: 8px 12px; font-size: 11px; }
+  /* Bottom-left is free on phones (the disclaimer is hidden), so the
+     edition chip moves there; the footer text clears it with side padding. */
+  .ver-chip { bottom: 8px; right: auto; left: 10px; }
+  #screen-menu .footer { padding: 0 116px; line-height: 1.35; }
+  #screen-menu .menu-disclaimer { display: none; }
+  .slot .sprite-icon { width: 52px; height: 52px; }
+  .card .sprite-icon { width: 48px; height: 48px; }
+}
+
 /* Respect users who prefer less motion. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -1400,6 +1450,9 @@ function setState(s) {
   if (s === "SETTINGS") renderSettings();
   if (s === "COMBAT" || s === "DEAD") refreshCombatBar();
   if (s === "COMBAT") { renderDamageMeter(); renderSpellBar(); }
+  // Re-fit the arena to the screen whenever we're safely outside combat
+  // (e.g. the phone was rotated during a run — applies once the run ends).
+  if (s !== "COMBAT" && s !== "BOSS_REWARD") applyFieldSize();
 }
 
 /* ============================================================
@@ -1663,15 +1716,28 @@ function buildWave(wave) {
   for (let i = 0; i < count; i++) queue.push(choice(pool));
   return queue;
 }
+// Speed augments (run buffs + challenges, e.g. Cursed Treasury) convert to
+// time directly: a combined "+X% speed" means "X% less time to reach the
+// castle" (×1.25 speed → ×0.75 time; a slowing mod adds time the same way).
+// Clamped so extreme modded values can never hit zero or crawl forever.
+function speedAugTimeMul() {
+  const m = buffProd("enemySpeedMul") * chMul("enemySpeedMul");
+  return clamp(1 - (m - 1), 0.2, 3);
+}
 function spawnEnemy(type, wave) {
   const t = ENEMY_TYPES[type];
-  // Elite March (challenge) raises enemy HP; Cursed Treasury raises speed.
+  // Elite March (challenge) raises enemy HP; Cursed Treasury cuts arrival time.
   const hp = enemyBaseHP(wave) * t.hpMul * (t.boss ? 1 : rand(0.9, 1.1)) * chMul("enemyHpMul");
   const margin = 60;
   return {
-    type, t, x: rand(margin, CANVAS_W - margin), y: -20,
+    type, t, x: rand(margin, CANVAS_W - margin), y: SPAWN_Y,
     hp, maxHP: hp,
-    spd: t.spd * COMPACT_FIELD_SPEED_SCALE * waveSpeedMul(wave) * buffProd("enemySpeedMul") * chMul("enemySpeedMul"),
+    // TIME-TO-CASTLE: seconds from spawn to the wall. Derived from the same
+    // data-table speed + tuning as before (so 1600×900 pacing is identical),
+    // but stored as TIME so any arena size takes the same seconds to cross.
+    // Wave scaling divides the time (the old per-wave speed-up); speed
+    // augments subtract time directly via speedAugTimeMul().
+    ttc: enemyTravelTime(t) / waveSpeedMul(wave) * speedAugTimeMul(),
     reward: Math.ceil(t.reward * waveRewardMul(wave)),
     dmg: t.dmg + wave * 0.6, r: t.r,
     flying: !!t.flying, fast: !!t.fast, boss: !!t.boss,
@@ -1899,14 +1965,48 @@ function chVal(field, dflt) { let best = null; for (const id of activeChallengeI
    ============================================================ */
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d", { alpha: false });
-// Normal-screen battlefield target: 1600×900 by default, responsive on smaller screens.
-// Resolution scale changes the backing canvas only; gameplay uses this logical size.
+/* ---- DYNAMIC ARENA (phone support) ----
+   The logical field adapts to the screen: 1600×900 in landscape (the
+   classic desktop field, pixel-identical to before) or 900×1600 when the
+   screen is portrait, so the battlefield fills a phone instead of being a
+   letterboxed sliver. Difficulty is unchanged because enemies move on a
+   TIME-TO-CASTLE basis (see spawnEnemy/update): each enemy takes the same
+   number of seconds to reach the wall no matter how tall the arena is.
+   The arena is only re-fitted OUTSIDE combat, so a run never reflows
+   mid-wave. Resolution scale changes the backing canvas only. */
 const SETTINGS_KEY = "clickDefendersSettings_v2";
-const CANVAS_W = 1600, CANVAS_H = 900;
+const FIELD_LANDSCAPE = { w: 1600, h: 900 };
+const FIELD_PORTRAIT  = { w: 900,  h: 1600 };
+let CANVAS_W = FIELD_LANDSCAPE.w, CANVAS_H = FIELD_LANDSCAPE.h;
 const BASE = { x: CANVAS_W / 2, y: CANVAS_H - 42, w: 300, h: 58 };
-const BASE_LINE = BASE.y - BASE.h / 2;
-const ORIGINAL_BASE_LINE = 481; // old 740×540 layout reached the wall around y=481
-const COMPACT_FIELD_SPEED_SCALE = BASE_LINE / ORIGINAL_BASE_LINE;
+let BASE_LINE = BASE.y - BASE.h / 2;
+// Reference numbers from the canonical 1600×900 field. Enemy pacing is
+// defined in SECONDS against this reference (see enemyTravelTime), so these
+// stay fixed even when the arena changes size.
+const ORIGINAL_BASE_LINE = 481;      // old 740×540 layout reached the wall around y=481
+const REF_SPEED_SCALE = 829 / ORIGINAL_BASE_LINE;   // the old COMPACT_FIELD_SPEED_SCALE at 1600×900
+const SPAWN_Y = -20;                 // enemies spawn just above the top edge
+const REF_TRAVEL_DIST = 829 - SPAWN_Y;              // reference spawn→wall distance (849)
+// Seconds for an enemy type to march from spawn to the wall, before wave
+// scaling and augments — derived from the same data table + tuning as the
+// old speed system, so desktop pacing is identical.
+function enemyTravelTime(t) { return REF_TRAVEL_DIST / (t.spd * REF_SPEED_SCALE); }
+// Current spawn→wall distance; movement each frame is distance / ttc.
+function fieldTravelDist() { return BASE_LINE - SPAWN_Y; }
+// Pick the field for the current screen orientation. Never changes the
+// arena mid-combat (positions would jump); everything derived — BASE,
+// BASE_LINE, scenery, canvas backing store — is recomputed.
+function applyFieldSize() {
+  if (GS === "COMBAT" || GS === "BOSS_REWARD") return;
+  const portrait = window.innerHeight > window.innerWidth;
+  const f = portrait ? FIELD_PORTRAIT : FIELD_LANDSCAPE;
+  if (f.w === CANVAS_W && f.h === CANVAS_H) return;
+  CANVAS_W = f.w; CANVAS_H = f.h;
+  BASE.x = CANVAS_W / 2; BASE.y = CANVAS_H - 42;
+  BASE_LINE = BASE.y - BASE.h / 2;
+  buildScenery();
+  applyResolutionScale(settings.resolutionScale);
+}
 const DEFAULT_ATTACK_COOLDOWN_SCALE = 0.90; // slightly faster default attacks for the larger tuned field
 let settings = { resolutionScale: 1 };
 function loadSettings() {
@@ -1935,6 +2035,11 @@ function applyResolutionScale(scale) {
   canvas.style.aspectRatio = CANVAS_W + " / " + CANVAS_H;
   canvas.style.width = "100%";
   canvas.style.height = "auto";
+  // Size the battlefield frame for the CURRENT field aspect (the stylesheet
+  // rule assumes 16:9 landscape; portrait needs a narrower cap so the tall
+  // canvas still fits on screen with the HUD).
+  const bf = document.getElementById("battlefield");
+  if (bf) bf.style.width = "min(100%, " + CANVAS_W + "px, calc((100vh - 170px) * " + (CANVAS_W / CANVAS_H).toFixed(4) + "))";
   setCanvasQuality();
   renderSettings();
   saveSettings();
@@ -1945,7 +2050,7 @@ function renderSettings() {
   const sel = document.getElementById("resolutionSelect");
   const readout = document.getElementById("resolutionReadout");
   if (sel) sel.value = String(settings.resolutionScale);
-  if (readout) readout.textContent = "Applied internal render resolution: " + canvas.width + "×" + canvas.height + " (" + settings.resolutionScale + "×). Gameplay field stays 1600×900.";
+  if (readout) readout.textContent = "Applied internal render resolution: " + canvas.width + "×" + canvas.height + " (" + settings.resolutionScale + "×). Gameplay field: " + CANVAS_W + "×" + CANVAS_H + " (auto-fits your screen's orientation).";
 }
 function drawSprite(img, x, y, w, h) {
   if (!img || !img.complete || !img.naturalWidth) return false;
@@ -1994,6 +2099,7 @@ function globalAllDmgMul() {
 
 /* ---- Run lifecycle ---- */
 function startRun() {
+  applyFieldSize();   // lock the arena to the current orientation for this run
   run = freshRun();
   run.active = true;
   // Apply the challenges chosen on the Challenges screen (up to 3, ≤1 Main Mode).
@@ -2569,9 +2675,13 @@ function update(dt) {
       if (Math.random() < dt * 7) spawnParticles(e.x + rand(-10, 10), e.y, DMG.fire, { n: 1, spd: 18, vy: -55, g: -50, size: 2.4, life: 0.7 });
       if (e.hp <= 0) { killEnemy(e); continue; }
     }
-    let spd = e.spd; if (e.slowT > 0) { e.slowT -= dt; spd *= (1 - e.slowAmt); }
+    // Advance by (current arena distance ÷ time-to-castle): the same enemy
+    // crosses ANY arena size in the same number of seconds. Active slows
+    // reduce the rate exactly as they used to reduce speed.
+    let rate = fieldTravelDist() / e.ttc;
+    if (e.slowT > 0) { e.slowT -= dt; rate *= (1 - e.slowAmt); }
     if (e.flash > 0) e.flash -= dt;
-    e.y += spd * dt;
+    e.y += rate * dt;
     if (e.y >= BASE_LINE) {
       const idx = run.enemies.indexOf(e); if (idx > -1) run.enemies.splice(idx, 1);
       if (e.bounty) run.bounty = null;   // bounty escaped — no reward
@@ -2682,18 +2792,24 @@ function update(dt) {
    coordinate, hitbox and value is exactly what it always was. */
 // Pre-baked scenery for the procedural backdrop (generated once per load).
 const HORIZON = 150;                            // far edge of the ground plane
-const VANISH = { x: CANVAS_W / 2, y: -720 };    // vanishing point above the field
-const FIELD_STARS = Array.from({ length: 110 }, () => ({
-  x: Math.random() * CANVAS_W, y: Math.random() * (HORIZON - 14),
-  r: 0.6 + Math.random() * 1.5, tw: Math.random() * Math.PI * 2,
-}));
+let VANISH, FIELD_STARS, RIDGE_FAR, RIDGE_NEAR; // rebuilt when the arena changes
 function makeRidge(yBase, amp, seg) {
   const pts = [];
   for (let i = 0; i <= seg; i++) pts.push({ x: (i / seg) * CANVAS_W, y: yBase - Math.abs(Math.sin(i * 2.7 + 1)) * amp - Math.random() * amp * 0.4 });
   return pts;
 }
-const RIDGE_FAR = makeRidge(HORIZON + 6, 74, 16);
-const RIDGE_NEAR = makeRidge(HORIZON + 34, 48, 22);
+// (Re)generate the procedural scenery for the current field size — called
+// once at load and again whenever applyFieldSize swaps the arena.
+function buildScenery() {
+  VANISH = { x: CANVAS_W / 2, y: -720 };        // vanishing point above the field
+  FIELD_STARS = Array.from({ length: 110 }, () => ({
+    x: Math.random() * CANVAS_W, y: Math.random() * (HORIZON - 14),
+    r: 0.6 + Math.random() * 1.5, tw: Math.random() * Math.PI * 2,
+  }));
+  RIDGE_FAR = makeRidge(HORIZON + 6, 74, 16);
+  RIDGE_NEAR = makeRidge(HORIZON + 34, 48, 22);
+}
+buildScenery();
 function drawRidge(pts, closeY, color) {
   ctx.fillStyle = color;
   ctx.beginPath(); ctx.moveTo(-4, closeY);
@@ -3756,11 +3872,22 @@ document.getElementById("wipeBtn").onclick = () => { if (confirm("Erase all prog
 // Collapsible battlefield overlays.
 document.getElementById("dmToggle").onclick = () => document.getElementById("dmgMeter").classList.toggle("collapsed");
 document.getElementById("fortToggle").onclick = () => document.getElementById("fortPanel").classList.toggle("collapsed");
+// Re-fit the arena when the window resizes or a phone rotates (no-op during
+// combat; the change applies as soon as the run ends / a menu opens).
+window.addEventListener("resize", applyFieldSize);
+window.addEventListener("orientationchange", applyFieldSize);
 
 /* ---- Boot ---- */
 function init() {
   loadSettings();
   applyResolutionScale(settings.resolutionScale);
+  applyFieldSize();   // portrait screens get the 900×1600 arena from the start
+  // Phone-sized screens: start the damage meter collapsed so the small
+  // battlefield stays clear (tap its header to expand as usual).
+  if (Math.min(window.innerWidth || 9999, window.innerHeight || 9999) < 700) {
+    const dm = document.getElementById("dmgMeter");
+    if (dm) dm.classList.add("collapsed");
+  }
   load();
   if (Object.keys(persist.ownedUnits).length === 0) {
     persist.ownedUnits.archer = 1; persist.equipped = ["archer"]; persist.coins = 60;

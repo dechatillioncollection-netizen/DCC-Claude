@@ -26,6 +26,30 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.11.0 — UPDATE — 2026-07-14 09:41 SAST
+  Added (HD Remaster only):
+    - TIME-TO-CASTLE movement: every enemy now carries a `ttc` — the
+      number of SECONDS it takes to march from spawn to the wall —
+      instead of a pixel speed. It is derived from the same data-table
+      speeds and tuning as before, so desktop pacing is mathematically
+      identical (verified to floating-point precision). Wave scaling
+      divides the time as before; speed AUGMENTS (run buffs/challenges,
+      e.g. Cursed Treasury) now adjust the time directly: +25% speed
+      means exactly 25% less time to reach the castle. Slows still cut
+      the movement rate while active.
+    - Phone-scaling arena: on portrait screens the logical battlefield
+      switches from 1600×900 to 900×1600 so the game fills a phone
+      instead of a letterboxed sliver. Because enemies move on
+      time-to-castle, the difficulty is IDENTICAL on any arena size
+      (same 18.7s wave-1 march on desktop and phone). The arena re-fits
+      on rotation/resize but never mid-combat — a run keeps its field
+      until it ends.
+    - Phone/touch UI: safe-area (notch) support, no tap-zoom on
+      controls, compact HUD, full-width menu buttons, damage meter
+      pinned to the top of the field (it used to sit on the castle) and
+      starting collapsed on small screens, moon/badge/footer layout
+      fixed so nothing overlaps the title or edition chips.
+
 v8.10.1 — HOTFIX — 2026-07-14 02:52 SAST
   Fixed:
     - HD Remaster load time: the generated HD sprites were unoptimised
