@@ -1449,6 +1449,7 @@ function freshRun() {
     bounty: null, bountyIdx: -1, spawnIndex: 0,   // Bounty Hunt
     bonusDmgT: 0, bonusSpdT: 0, overchargeT: 0,   // temporary wave/ability boosts
     knightCmd: null, knightCmdTimer: 0, trapIdx: 0,  // Command Mode knight post
+    muzzle: {},         // per-slot "shooting pose" timers (visual only)
   };
 }
 // Record damage to the meter, keyed by source ("click" or a unit id).
@@ -1530,18 +1531,51 @@ function attachHD(img, opts) {
   const go = () => { const hd = enhanceSprite(img, opts); if (hd) img.hd = hd; };
   if (img.complete && img.naturalWidth) go(); else img.onload = go;
 }
-function loadSpriteMap(map) {
-  const out = {};
-  for (const [id, src] of Object.entries(map)) {
-    const img = new Image();
-    img.src = src;
-    attachHD(img);
-    out[id] = img;
-  }
-  return out;
+/* ---- HD sprite set (sprites/hd/) ----
+   Pre-baked by tools/make-hd-sprites.js from the classic art. Each unit
+   and enemy has TWO frames: the idle sprite plus one animation pose —
+   `<type>_walk.png` for enemies (alternated while marching) and
+   `<id>_shoot.png` for units (flashed when that slot fires). Everything
+   is optional: a missing idle falls back to the classic PNG run through
+   the runtime remaster pipeline, and a missing pose frame simply means
+   that sprite doesn't animate. */
+const HD_UNIT_DIR = "sprites/hd/units/", HD_ENEMY_DIR = "sprites/hd/enemies/";
+// Load the pre-baked HD sprite, falling back to the classic PNG (with the
+// runtime remaster applied) if the HD file is missing.
+function loadHDSprite(hdSrc, classicSrc) {
+  const img = new Image();
+  let fellBack = false;
+  img.onerror = () => { if (fellBack) return; fellBack = true; img.src = classicSrc; attachHD(img); };
+  img.src = hdSrc;
+  return img;
 }
-const UNIT_IMAGES = loadSpriteMap(UNIT_SPRITES);
-const ENEMY_IMAGES = loadSpriteMap(ENEMY_SPRITES);
+// Optional pose frame: if the file is missing the game just shows the idle
+// frame (no animation) instead of breaking.
+function loadPoseFrame(src) {
+  const img = new Image();
+  img.onerror = () => { img.missing = true; };
+  img.src = src;
+  return img;
+}
+function spriteReady(img) { return !!(img && !img.missing && img.complete && img.naturalWidth); }
+const UNIT_IMAGES = {}, UNIT_SHOOT_IMAGES = {};
+for (const [uid, usrc] of Object.entries(UNIT_SPRITES)) {
+  UNIT_IMAGES[uid] = loadHDSprite(HD_UNIT_DIR + uid + ".png", usrc);
+  UNIT_SHOOT_IMAGES[uid] = loadPoseFrame(HD_UNIT_DIR + uid + "_shoot.png");
+}
+const ENEMY_IMAGES = {}, ENEMY_WALK_IMAGES = {};
+for (const [etype, esrc] of Object.entries(ENEMY_SPRITES)) {
+  ENEMY_IMAGES[etype] = loadHDSprite(HD_ENEMY_DIR + etype + ".png", esrc);
+  ENEMY_WALK_IMAGES[etype] = loadPoseFrame(HD_ENEMY_DIR + etype + "_walk.png");
+}
+// Two-frame march: the frame flips every 34px of ground covered, so fast
+// enemies scurry, slowed enemies visibly trudge, and flyers flap. Purely
+// visual — position, speed and hitboxes are untouched.
+function enemyFrame(e) {
+  const walk = ENEMY_WALK_IMAGES[e.type];
+  if (spriteReady(walk) && Math.floor(e.y / 34) % 2 === 1) return walk;
+  return ENEMY_IMAGES[e.type];
+}
 // Swappable scenery sprites — replace these PNGs to reskin the battlefield.
 // Both degrade gracefully to the old procedural drawing if the file is missing.
 const FIELD_BG_SRC = 'sprites/background.png';
@@ -2125,6 +2159,8 @@ function unitAttack(id, slot, mods) {
   // Attacks originate from this copy's own slot position (so duplicates each
   // fire from their own spot on the wall).
   const post = unitPost(slot);
+  // Show this slot's shooting/casting pose for a beat (visual only).
+  if (run && run.muzzle && slot != null && slot >= 0) run.muzzle[slot] = 0.18;
 
   switch (id) {
     case "archer": {
@@ -2253,6 +2289,8 @@ function unitAttackAt(id, slot, tx, ty, dmgMul) {
   const tb = unitTalentBonus.bind(null, id);
   const dmg = unitStat(id, "dmg") * tb("dmg").mul * globalAllDmgMul() * (dmgMul || 1);
   const post = unitPost(slot);
+  // Show this slot's shooting/casting pose for a beat (visual only).
+  if (run && run.muzzle && slot != null && slot >= 0) run.muzzle[slot] = 0.18;
   const nearAim = (r) => run.enemies.filter(e => Math.hypot(e.x - tx, e.y - ty) <= r + e.r);
   switch (id) {
     case "archer": case "ranger": {
@@ -2377,6 +2415,7 @@ function castSpell(slot) {
   const id = persist.equipped[slot]; const sp = SPELLS[id]; if (!sp) return;
   if ((run.spellCd[slot] || 0) > 0) return;
   sp.cast(); run.spellCd[slot] = sp.cd;
+  if (run.muzzle) run.muzzle[slot] = 0.25;   // casting pose (visual only)
   renderSpellBar();
 }
 
@@ -2589,6 +2628,8 @@ function update(dt) {
   if (run.bonusDmgT > 0) run.bonusDmgT -= dt;
   if (run.bonusSpdT > 0) run.bonusSpdT -= dt;
   if (run.overchargeT > 0) run.overchargeT -= dt;
+  // Fade the per-slot shooting-pose timers (visual only).
+  if (run.muzzle) for (const mk in run.muzzle) if (run.muzzle[mk] > 0) run.muzzle[mk] -= dt;
   if (mode === "spellbook") { let changed = false; for (let i = 0; i < persist.equipped.length; i++) { if (run.spellCd[i] > 0) { run.spellCd[i] = Math.max(0, run.spellCd[i] - dt); changed = true; } } if (changed) { run.spellUiT = (run.spellUiT || 0) - dt; if (run.spellUiT <= 0) { run.spellUiT = 0.2; renderSpellBar(); } } }
   // Smoke drifts off the keep while it's badly damaged (visual only).
   smokeT -= dt;
@@ -2799,7 +2840,7 @@ function render() {
     }
 
     for (const e of run.enemies) {
-      const sprite = ENEMY_IMAGES[e.type];
+      const sprite = enemyFrame(e);   // 2-frame march animation
       const spriteSize = enemySpriteSize(e);
       // Enemies fade in as they march out of the distant haze at the top.
       const fadeIn = clamp((e.y + 20) / 62, 0, 1);
@@ -3043,8 +3084,9 @@ function drawBase() {
   drawDefenders();
 }
 // Equipped defenders spaced out along the wall (sprite, or emoji fallback).
-// Each idles with a gentle bob — drawing only; shots still originate from
-// the slot's true unitPost() position.
+// Each idles with a gentle bob, and swaps to its `_shoot` pose frame (with a
+// tiny recoil kick) for a beat whenever that slot fires — drawing only;
+// shots still originate from the slot's true unitPost() position.
 function drawDefenders() {
   ctx.font = '20px sans-serif'; ctx.textAlign = 'center';
   const now = performance.now();
@@ -3053,8 +3095,12 @@ function drawDefenders() {
   for (let i = 0; i < n; i++) {
     const id = persist.equipped[i], p = defenderPos(i, n);
     const bob = Math.sin(now / 430 + i * 1.7) * 2.5;
+    const shootImg = UNIT_SHOOT_IMAGES[id];
+    const firing = run && run.muzzle && run.muzzle[i] > 0 && spriteReady(shootImg);
+    const frame = firing ? shootImg : UNIT_IMAGES[id];
+    const kick = firing ? 2 : 0;   // slight recoil while the shoot pose shows
     ctx.fillStyle = 'rgba(12,15,23,.55)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
-    if (!drawSprite(UNIT_IMAGES[id], p.x, p.y + bob, 50, 50)) ctx.fillText(UNITS[id].emoji, p.x, p.y + 7 + bob);
+    if (!drawSprite(frame, p.x, p.y + bob + kick, 50, 50)) ctx.fillText(UNITS[id].emoji, p.x, p.y + 7 + bob);
     // Overwatch: charge bar under each damage unit (support units auto-heal).
     if (mode === "overwatch" && id !== "priest" && id !== "engineer") {
       const full = overwatchChargeTime(id), k = clamp((run.charge[i] || 0) / full, 0, 1);
