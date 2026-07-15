@@ -26,6 +26,26 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.14.0 — UPDATE — 2026-07-15 12:06 SAST
+  Added (HD Remaster only — Leader Mode):
+    - Archer support: no longer a dead slot — each support archer grants
+      the leader ×1.4 TOTAL attack speed, applied AFTER all additive
+      augments (two archers = ×1.96; card shows "+96% total spd").
+  Fixed (the quirks that undermined the mode):
+    - Support on-hit riders (burn, slow, splash, priest heal) now work
+      for EVERY leader, not just archer/ranger/assassin: mage, cannon,
+      ice and fire leaders apply them to their primary target, and the
+      knight leader applies them to every enemy its zones strike (priest
+      heal fires once per swing, not once per enemy, to keep it sane).
+    - Ranger support ("hunts fast/flying") now steers every
+      nearest-to-base leader (archer, mage, cannon, ice, fire) — it
+      previously only affected an archer leader. Assassin keeps its
+      strongest-enemy identity.
+    - Elemental conversion (ice/fire) now applies to ALL leader types,
+      with shots/booms/damage numbers in the element's colour.
+    - Cards updated to match: archer support shows "→ +40% ldr spd";
+      the "hunts fast" line shows on every leader it actually affects.
+
 v8.13.0 — UPDATE — 2026-07-15 11:58 SAST
   Changed (HD Remaster only — Leader Mode support rework):
     - Ice Wizard support: slow reduced 30% → 20%, but it now CONVERTS the

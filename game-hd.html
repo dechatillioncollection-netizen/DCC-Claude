@@ -2273,6 +2273,11 @@ function knightSlash() {
   }
 }
 
+// Ranger support (Leader Mode): leaders that normally target the enemy
+// nearest the base instead hunt fast/flying foes first.
+function leaderTarget(mods) {
+  return (mods && mods.fastTarget && nearestEnemyTo(BASE.x, BASE.y, en => en.fast || en.flying)) || nearestEnemyToBase();
+}
 function unitAttack(id, slot, mods) {
   const allDmgMul = globalAllDmgMul();
   const tb = unitTalentBonus.bind(null, id);
@@ -2291,7 +2296,7 @@ function unitAttack(id, slot, mods) {
       const atkType = (mods && mods.dmgType) || "archer";
       const shots = 1 + Math.floor(buffSum("extraShots"));
       for (let s = 0; s < shots; s++) {
-        const e = (mods && mods.fastTarget && nearestEnemyTo(BASE.x, BASE.y, en => en.fast || en.flying)) || nearestEnemyToBase();
+        const e = leaderTarget(mods);
         if (!e) break; shoot(e.x, e.y, dmgColor(atkType), "arrow", post.x, post.y); const d = dmgFor(); damageEnemy(e, d, { type: atkType, src: "archer" }); applyLeaderMods(e, mods, d);
       }
       break;
@@ -2312,41 +2317,58 @@ function unitAttack(id, slot, mods) {
     }
     case "mage": {
       // Slow purple ORB (visually distinct from archer arrows) + splash burst.
-      const e = nearestEnemyToBase();
+      const e = leaderTarget(mods);
       if (e) { let r = (unitStat(id,"splash") + tb("splash").add) * buffProd("mageSplashMul");
-        shoot(e.x, e.y, DMG.mage, "orb", post.x, post.y); boom(e.x, e.y, r, DMG.mage, "burst"); splashDamage(e.x, e.y, r, dmgFor(), { type: "mage", src: "mage" }); }
+        const atkType = (mods && mods.dmgType) || "mage", c = dmgColor(atkType);
+        shoot(e.x, e.y, c, "orb", post.x, post.y); boom(e.x, e.y, r, c, "burst"); const d = dmgFor(); splashDamage(e.x, e.y, r, d, { type: atkType, src: "mage" }); applyLeaderMods(e, mods, d); }
       break;
     }
     case "cannon": {
       // Big orange area explosion, fired from the cannon's position.
-      const e = nearestEnemyToBase();
+      const e = leaderTarget(mods);
       if (e) { const r = unitStat(id,"splash") + tb("splash").add;
-        shoot(e.x, e.y, DMG.cannon, "orb", post.x, post.y); boom(e.x, e.y, r, DMG.cannon, "burst"); boom(e.x, e.y, r, DMG.cannon, "ring"); splashDamage(e.x, e.y, r, dmgFor(), { type: "cannon", src: "cannon" }); }
+        const atkType = (mods && mods.dmgType) || "cannon", c = dmgColor(atkType);
+        shoot(e.x, e.y, c, "orb", post.x, post.y); boom(e.x, e.y, r, c, "burst"); boom(e.x, e.y, r, c, "ring"); const d = dmgFor(); splashDamage(e.x, e.y, r, d, { type: atkType, src: "cannon" }); applyLeaderMods(e, mods, d); }
       break;
     }
     case "icewizard": {
       // Pale-blue frost burst; clearly slows everything it hits.
-      const e = nearestEnemyToBase();
+      const e = leaderTarget(mods);
       if (e) { const r = unitStat(id,"splash"); let slow = unitStat(id,"slow") + (unitTalentBonus(id,"slow").mul - 1);
         slow = Math.min(0.9, slow + buffSum("slowAdd"));   // Deep Freeze / Frostbite / Frozen Heart
-        shoot(e.x, e.y, DMG.ice, "orb", post.x, post.y); boom(e.x, e.y, r, DMG.ice, "ring");
-        for (const t of run.enemies.slice()) if (Math.hypot(t.x-e.x, t.y-e.y) <= r + t.r) { damageEnemy(t, dmgFor(), { type: "ice", src: "icewizard" }); applySlow(t, slow, unitStat(id,"slowDur")); }
+        const atkType = (mods && mods.dmgType) || "ice", c = dmgColor(atkType);
+        shoot(e.x, e.y, c, "orb", post.x, post.y); boom(e.x, e.y, r, c, "ring");
+        for (const t of run.enemies.slice()) if (Math.hypot(t.x-e.x, t.y-e.y) <= r + t.r) { damageEnemy(t, dmgFor(), { type: atkType, src: "icewizard" }); applySlow(t, slow, unitStat(id,"slowDur")); }
+        applyLeaderMods(e, mods, dmgFor());
       }
       break;
     }
     case "firewizard": {
       // Direct hit + lingering burn (burn ticks attributed to the fire wizard).
-      const e = nearestEnemyToBase();
-      if (e) { const burn = unitStat(id,"burn") * tb("burn").mul * allDmgMul; shoot(e.x, e.y, DMG.fire, "orb", post.x, post.y); damageEnemy(e, dmgFor(), { type: "fire", src: "firewizard" }); applyBurn(e, burn); }
+      const e = leaderTarget(mods);
+      if (e) { const burn = unitStat(id,"burn") * tb("burn").mul * allDmgMul;
+        const atkType = (mods && mods.dmgType) || "fire", c = dmgColor(atkType);
+        shoot(e.x, e.y, c, "orb", post.x, post.y); const d = dmgFor(); damageEnemy(e, d, { type: atkType, src: "firewizard" }); applyBurn(e, burn); applyLeaderMods(e, mods, d); }
       break;
     }
     case "knight": {
       // Each field post projects an AoE that damages + slows enemies inside it.
       const r = knightRadius();
       const slow = unitStat(id,"slow") * (1 + talentEffect("t_knight_block"));
+      const atkType = (mods && mods.dmgType) || "physical";
+      // Leader riders apply per enemy struck, but priest lifesteal heals
+      // only once per swing (a zone can hit many enemies at once).
+      const perTarget = mods ? Object.assign({}, mods, { lifesteal: 0 }) : null;
+      let struck = false;
       for (const p of knightPositions()) {
-        for (const t of run.enemies) if (Math.hypot(t.x - p.x, t.y - p.y) <= r + t.r) { damageEnemy(t, dmgFor(), { type: "physical", src: "knight" }); applySlow(t, slow, 0.6); }
+        for (const t of run.enemies.slice()) {
+          if (t.hp <= 0 || Math.hypot(t.x - p.x, t.y - p.y) > r + t.r) continue;
+          const d = dmgFor(); damageEnemy(t, d, { type: atkType, src: "knight" }); applySlow(t, slow, 0.6);
+          if (perTarget) applyLeaderMods(t, perTarget, d);
+          struck = true;
+        }
       }
+      if (mods && mods.lifesteal > 0 && struck) healBase((run.baseMaxHP || 100) * mods.lifesteal);
       break;
     }
     case "priest": {
@@ -2389,9 +2411,10 @@ function attackSpeedMul(id) {
 // (so typed run buffs like Permafrost/Inferno then boost the leader). If
 // both are equipped, the later slot decides — loadout order matters.
 function leaderMods() {
-  const m = { dmgMul: 1, burn: 0, slow: 0, splash: 0, lifesteal: 0, fastTarget: false, dmgType: null };
+  const m = { dmgMul: 1, spdMul: 1, burn: 0, slow: 0, splash: 0, lifesteal: 0, fastTarget: false, dmgType: null };
   for (let i = 1; i < persist.equipped.length; i++) {
     switch (persist.equipped[i]) {
+      case "archer":     m.spdMul *= 1.4; break;   // ×1.4 TOTAL attack speed (applied after all additive augments)
       case "firewizard": m.burn += unitStat("firewizard", "burn"); m.dmgType = "fire"; break;   // burn + fire conversion
       case "icewizard":  m.slow = Math.min(0.8, m.slow + 0.2); m.dmgType = "ice"; break;        // lighter slow + ice conversion
       case "mage":       m.splash = Math.max(m.splash, 80); break;
@@ -2751,7 +2774,10 @@ function update(dt) {
     }
     // Click-driven modes: damage units are player-controlled; support units still auto-heal.
     if (autoAttacksOff() && !support) continue;
-    const cd = (unitStat(id, "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) / attackSpeedMul(id);
+    let cd = (unitStat(id, "cd") * DEFAULT_ATTACK_COOLDOWN_SCALE) / attackSpeedMul(id);
+    // Archer supports (Leader Mode): ×1.4 TOTAL attack speed for the
+    // leader, applied on top of — i.e. after — all additive augments.
+    if (mode === "leader" && i === 0 && lMods && lMods.spdMul > 1) cd /= lMods.spdMul;
     unitTimers[i] = (unitTimers[i] || rand(0, cd)) - dt;
     if (unitTimers[i] <= 0) { unitTimers[i] = cd; unitAttack(id, i, (mode === "leader" && i === 0) ? lMods : null); if (GS !== "COMBAT") return; }
   }
@@ -3260,7 +3286,7 @@ function unitAugmentLines(id, slot) {
         knight:     [{ txt: "→ +30% slow", color: DMG.ice }],
         priest:     [{ txt: "→ 2% heal/hit", color: DMG.heal }],
         ranger:     [{ txt: "→ hunts fast", color: DMG.archer }],
-        archer:     [{ txt: "no ldr effect", color: "#97a3bd" }],
+        archer:     [{ txt: "→ +40% ldr spd", color: "#7cd6ff" }],
       };
       return grants[id] || [];
     }
@@ -3268,12 +3294,14 @@ function unitAugmentLines(id, slot) {
     const m = leaderMods();
     const recv = [];
     if (m.dmgMul !== 1) recv.push(augLine(m.dmgMul - 1, "sup dmg", "#ffd76b"));
+    // ×1.4 per archer support, multiplied AFTER all additive speed augments.
+    if (m.spdMul !== 1) recv.push(augLine(m.spdMul - 1, "total spd", "#7cd6ff"));
     if (m.dmgType) recv.push({ txt: m.dmgType + " damage", color: dmgColor(m.dmgType) });
     if (m.splash) recv.push({ txt: "splash " + m.splash, color: DMG.mage });
     if (m.burn) recv.push({ txt: "burn on hit", color: DMG.fire });
     if (m.slow) recv.push({ txt: pctTxt(m.slow) + " slow hit", color: DMG.ice });
     if (m.lifesteal) recv.push({ txt: pctTxt(m.lifesteal) + " heal/hit", color: DMG.heal });
-    if (m.fastTarget && id === "archer") recv.push({ txt: "hunts fast", color: DMG.archer });
+    if (m.fastTarget && ["archer", "mage", "cannon", "icewizard", "firewizard"].includes(id)) recv.push({ txt: "hunts fast", color: DMG.archer });
     return recv.concat(unitAugmentLines(id)).slice(0, 6);
   }
   const lines = [];
