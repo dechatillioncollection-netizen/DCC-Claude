@@ -26,6 +26,18 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v9.6.0 — UPDATE — 2026-07-15 12:02 SAST
+  Changed (Leader Mode support rework):
+    - Ice Wizard support: slow 30% → 20%, now converts the leader's hits
+      to ICE damage; Fire Wizard support also converts hits to FIRE (the
+      later slot decides when both are equipped); Knight support slow
+      20% → 30%. Leader shots/numbers take the element's colour.
+  Added:
+    - Stat cards double as the Leader Mode readout: the leader's card
+      lists all received bonuses; each support card shows its grant.
+      Support-knight AoE zones hidden in Leader Mode. Synced from the
+      served branch (v8.13.0).
+
 v9.5.0 — UPDATE — 2026-07-14 13:40 SAST
   Added:
     - Per-unit augment stat cards under a wider (520px), raised defender
