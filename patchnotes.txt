@@ -26,6 +26,21 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.15.0 — UPDATE — 2026-07-15 12:17 SAST
+  Changed (HD Remaster only — Leader Mode):
+    - Knight leader rework: instead of holding 2–5 field posts, a knight
+      leader is now a SINGLE roaming hero. He marches to the front-most
+      enemy (the one nearest the castle), parks his AoE on it and swings
+      until it dies, then moves to the next — same damage and radius per
+      swing as a field post. He sticks to his quarry (no target
+      thrashing), and all Leader Mode support bonuses apply as usual
+      (riders per enemy struck, priest heal once per swing).
+    - Hero movement speed is defined in arena-crossing seconds (4s), so
+      like enemy time-to-castle it scales identically on desktop and
+      phone arenas. Drawn as one zone with the knight sprite and a
+      LEADER tag (shoot pose flashes on each swing); the old multi-post
+      zones still appear in every other mode.
+
 v8.14.0 — UPDATE — 2026-07-15 12:06 SAST
   Added (HD Remaster only — Leader Mode):
     - Archer support: no longer a dead slot — each support archer grants

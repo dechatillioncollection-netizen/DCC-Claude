@@ -1507,6 +1507,7 @@ function freshRun() {
     bounty: null, bountyIdx: -1, spawnIndex: 0,   // Bounty Hunt
     bonusDmgT: 0, bonusSpdT: 0, overchargeT: 0,   // temporary wave/ability boosts
     knightCmd: null, knightCmdTimer: 0, trapIdx: 0,  // Command Mode knight post
+    heroKnight: null, heroTarget: null,  // Leader Mode: the roaming knight hero + its quarry
     muzzle: {},         // per-slot "shooting pose" timers (visual only)
   };
 }
@@ -2273,6 +2274,30 @@ function knightSlash() {
   }
 }
 
+/* ---- Leader Mode: the roaming knight hero ----
+   When the KNIGHT is the leader it doesn't hold field posts — it becomes a
+   single hero who marches to the front-most enemy (the one nearest the
+   castle), parks his AoE on it until it dies, then moves to the next.
+   Same damage and radius per swing as a field post; movement speed is
+   defined in arena-crossing seconds so it scales with any field size,
+   exactly like enemy time-to-castle. */
+const HERO_TRAVERSE_TIME = 4;   // seconds for the hero to cross the arena
+function heroKnightTick(dt) {
+  if (!run.heroKnight) run.heroKnight = { x: BASE.x, y: defenderRowY() - 30 };
+  const h = run.heroKnight;
+  // Stick to the current quarry until it dies or escapes, then re-acquire
+  // the front-most enemy.
+  let t = run.heroTarget;
+  if (!t || t.hp <= 0 || run.enemies.indexOf(t) === -1) { t = nearestEnemyToBase(); run.heroTarget = t; }
+  if (!t) return;   // no enemies on the field: hold position
+  const dx = t.x - h.x, dy = t.y - h.y, dist = Math.hypot(dx, dy);
+  const reach = knightRadius() * 0.55;   // park with the quarry well inside the AoE
+  if (dist > reach) {
+    const step = Math.min(dist - reach, (fieldTravelDist() / HERO_TRAVERSE_TIME) * dt);
+    h.x = clamp(h.x + (dx / dist) * step, 40, CANVAS_W - 40);
+    h.y = clamp(h.y + (dy / dist) * step, 60, BASE_LINE - 10);
+  }
+}
 // Ranger support (Leader Mode): leaders that normally target the enemy
 // nearest the base instead hunt fast/flying foes first.
 function leaderTarget(mods) {
@@ -2352,15 +2377,20 @@ function unitAttack(id, slot, mods) {
       break;
     }
     case "knight": {
-      // Each field post projects an AoE that damages + slows enemies inside it.
+      // Each field post projects an AoE that damages + slows enemies inside
+      // it. As the LEADER the knight is instead a single roaming hero: one
+      // AoE of the same damage & radius, swung wherever he stands.
       const r = knightRadius();
       const slow = unitStat(id,"slow") * (1 + talentEffect("t_knight_block"));
       const atkType = (mods && mods.dmgType) || "physical";
       // Leader riders apply per enemy struck, but priest lifesteal heals
       // only once per swing (a zone can hit many enemies at once).
       const perTarget = mods ? Object.assign({}, mods, { lifesteal: 0 }) : null;
+      const isHero = mods && chMode() === "leader" && slot === 0;
+      if (isHero && !run.heroKnight) run.heroKnight = { x: BASE.x, y: defenderRowY() - 30 };
+      const zones = isHero ? [run.heroKnight] : knightPositions();
       let struck = false;
-      for (const p of knightPositions()) {
+      for (const p of zones) {
         for (const t of run.enemies.slice()) {
           if (t.hp <= 0 || Math.hypot(t.x - p.x, t.y - p.y) > r + t.r) continue;
           const d = dmgFor(); damageEnemy(t, d, { type: atkType, src: "knight" }); applySlow(t, slow, 0.6);
@@ -2785,6 +2815,8 @@ function update(dt) {
   if (mode === "trapmaster" && run.traps.length) updateTraps(dt);
   // Command Mode: the commanded knight holds its post and keeps attacking.
   if (mode === "command") commandKnightTick(dt);
+  // Leader Mode: a knight leader is a single roaming hero (see heroKnightTick).
+  if (mode === "leader" && persist.equipped[0] === "knight") heroKnightTick(dt);
   // Decay temporary boosts and ability cooldowns.
   if (run.bonusDmgT > 0) run.bonusDmgT -= dt;
   if (run.bonusSpdT > 0) run.bonusSpdT -= dt;
@@ -2975,10 +3007,13 @@ function render() {
 
   if (run && run.active) {
     // ---- Knight defence zone: a clearly-visible arc in front of the wall ----
-    // Knight AoE zones — hidden in modes where the field knight doesn't act
-    // (incl. Leader Mode when the knight is only a support, not the leader).
-    if (persist.equipped.includes("knight") && chMode() !== "trapmaster" && chMode() !== "command" && chMode() !== "spellbook"
-        && (chMode() !== "leader" || persist.equipped[0] === "knight")) drawKnightZone();
+    // Knight AoE zones — hidden in modes where the field knight doesn't act.
+    // A knight LEADER is drawn as the single roaming hero instead of posts.
+    if (chMode() === "leader") {
+      if (persist.equipped[0] === "knight" && run.heroKnight) drawHeroKnight();
+    } else if (persist.equipped.includes("knight") && chMode() !== "trapmaster" && chMode() !== "command" && chMode() !== "spellbook") {
+      drawKnightZone();
+    }
     // ---- Trapmaster: placed traps ----
     if (run.traps.length) drawTraps();
     // ---- Command Mode: the knight's held post ----
@@ -3389,6 +3424,18 @@ function drawTraps() {
   }
 }
 // Command Mode: the knight's held AoE post, drawn where it was last commanded.
+// Leader Mode: the knight leader roams the field as a single hero,
+// holding his AoE over the front-most enemy until it falls.
+function drawHeroKnight() {
+  const p = run.heroKnight, r = knightRadius();
+  ctx.fillStyle = "rgba(239,83,83,0.12)"; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "rgba(255,95,95,0.6)"; ctx.lineWidth = 2; ctx.setLineDash([9, 7]);
+  ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1;
+  ctx.fillStyle = 'rgba(12,15,23,.5)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 24, 24, 8, 0, 0, Math.PI * 2); ctx.fill();
+  if (!drawSprite(knightFrame(), p.x, p.y, 56, 56)) { ctx.fillStyle = '#cdd6e6'; ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🛡️', p.x, p.y + 9); }
+  ctx.fillStyle = "rgba(255,150,150,0.92)"; ctx.font = "bold 14px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("LEADER", p.x, p.y + r - 10);
+}
 // The knight's field/command posts strike on the equipped knight slots'
 // cadence, so they share those slots' shoot-pose timers (visual only).
 function knightFrame() {
