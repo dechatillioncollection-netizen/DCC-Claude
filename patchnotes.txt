@@ -26,6 +26,17 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v9.7.0 — UPDATE — 2026-07-15 12:10 SAST
+  Added:
+    - Leader Mode archer support: ×1.4 TOTAL leader attack speed applied
+      after all additive augments (multiplies per copy).
+  Fixed:
+    - Support riders (burn/slow/splash/heal) now work for every leader
+      type; knight leader applies them per enemy struck with priest heal
+      once per swing; ranger's hunt-fast steers all nearest-to-base
+      leaders; elemental conversion applies to all leaders. Cards
+      updated. Synced from the served branch (v8.14.0).
+
 v9.6.0 — UPDATE — 2026-07-15 12:02 SAST
   Changed (Leader Mode support rework):
     - Ice Wizard support: slow 30% → 20%, now converts the leader's hits
