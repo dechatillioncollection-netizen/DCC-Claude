@@ -26,6 +26,15 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v9.8.0 — UPDATE — 2026-07-15 12:20 SAST
+  Changed:
+    - Knight leader rework (Leader Mode): a single roaming hero instead
+      of field posts — marches to the front-most enemy, swings his AoE
+      on it until it dies (same damage/radius), then moves to the next.
+      Sticky targeting; movement speed in arena-crossing seconds so it
+      scales like enemy time-to-castle. Synced from the served branch
+      (v8.15.0).
+
 v9.7.0 — UPDATE — 2026-07-15 12:10 SAST
   Added:
     - Leader Mode archer support: ×1.4 TOTAL leader attack speed applied
