@@ -2285,24 +2285,29 @@ function unitAttack(id, slot, mods) {
 
   switch (id) {
     case "archer": {
-      // Quick green single-target projectiles. Multishot adds extra shots.
+      // Quick single-target projectiles. Multishot adds extra shots. In
+      // Leader Mode an elemental support converts the shots' damage type
+      // (and the arrows take that element's colour).
+      const atkType = (mods && mods.dmgType) || "archer";
       const shots = 1 + Math.floor(buffSum("extraShots"));
       for (let s = 0; s < shots; s++) {
         const e = (mods && mods.fastTarget && nearestEnemyTo(BASE.x, BASE.y, en => en.fast || en.flying)) || nearestEnemyToBase();
-        if (!e) break; shoot(e.x, e.y, DMG.archer, "arrow", post.x, post.y); const d = dmgFor(); damageEnemy(e, d, { type: "archer", src: "archer" }); applyLeaderMods(e, mods, d);
+        if (!e) break; shoot(e.x, e.y, dmgColor(atkType), "arrow", post.x, post.y); const d = dmgFor(); damageEnemy(e, d, { type: atkType, src: "archer" }); applyLeaderMods(e, mods, d);
       }
       break;
     }
     case "ranger": {
-      // Like the archer but hunts fast/flying foes; also a quick green shot.
+      // Like the archer but hunts fast/flying foes; same elemental conversion.
+      const atkType = (mods && mods.dmgType) || "archer";
       let e = nearestEnemyTo(BASE.x, BASE.y, en => en.fast || en.flying) || nearestEnemyToBase();
-      if (e) { shoot(e.x, e.y, DMG.archer, "arrow", post.x, post.y); const d = dmgFor() * ((e.fast || e.flying) ? 1.5 : 1); damageEnemy(e, d, { type: "archer", src: "ranger" }); applyLeaderMods(e, mods, d); }
+      if (e) { shoot(e.x, e.y, dmgColor(atkType), "arrow", post.x, post.y); const d = dmgFor() * ((e.fast || e.flying) ? 1.5 : 1); damageEnemy(e, d, { type: atkType, src: "ranger" }); applyLeaderMods(e, mods, d); }
       break;
     }
     case "assassin": {
+      const atkType = (mods && mods.dmgType) || "physical";
       const e = strongestEnemy();
       if (e) { const strong = e.boss || e.type === "tank"; const mul = unitStat(id,"critMul") + tb("crit").add;
-        shoot(e.x, e.y, "#ff8a80", "arrow", post.x, post.y); const d = dmgFor() * (strong ? mul : 1); damageEnemy(e, d, { type: "physical", crit: strong, src: "assassin" }); applyLeaderMods(e, mods, d); }
+        shoot(e.x, e.y, (mods && mods.dmgType) ? dmgColor(atkType) : "#ff8a80", "arrow", post.x, post.y); const d = dmgFor() * (strong ? mul : 1); damageEnemy(e, d, { type: atkType, crit: strong, src: "assassin" }); applyLeaderMods(e, mods, d); }
       break;
     }
     case "mage": {
@@ -2380,17 +2385,20 @@ function attackSpeedMul(id) {
    Trapmaster traps, Spellbook abilities, Bounty rewards.
    ============================================================ */
 // --- Leader Mode: slots 1+ become on-hit modifiers for the slot-0 leader ---
+// dmgType: elemental supports CONVERT the leader's hits to their element
+// (so typed run buffs like Permafrost/Inferno then boost the leader). If
+// both are equipped, the later slot decides — loadout order matters.
 function leaderMods() {
-  const m = { dmgMul: 1, burn: 0, slow: 0, splash: 0, lifesteal: 0, fastTarget: false };
+  const m = { dmgMul: 1, burn: 0, slow: 0, splash: 0, lifesteal: 0, fastTarget: false, dmgType: null };
   for (let i = 1; i < persist.equipped.length; i++) {
     switch (persist.equipped[i]) {
-      case "firewizard": m.burn += unitStat("firewizard", "burn"); break;
-      case "icewizard":  m.slow = Math.min(0.8, m.slow + 0.3); break;
+      case "firewizard": m.burn += unitStat("firewizard", "burn"); m.dmgType = "fire"; break;   // burn + fire conversion
+      case "icewizard":  m.slow = Math.min(0.8, m.slow + 0.2); m.dmgType = "ice"; break;        // lighter slow + ice conversion
       case "mage":       m.splash = Math.max(m.splash, 80); break;
       case "cannon":     m.splash = Math.max(m.splash, 120); m.dmgMul *= 1.15; break;
       case "priest":     m.lifesteal += 0.02; break;
       case "engineer":   m.dmgMul *= 1.25; break;
-      case "knight":     m.slow = Math.min(0.8, m.slow + 0.2); break;
+      case "knight":     m.slow = Math.min(0.8, m.slow + 0.3); break;                            // heavier slow
       case "assassin":   m.dmgMul *= 1.6; break;
       case "ranger":     m.fastTarget = true; break;
     }
@@ -2401,7 +2409,7 @@ function applyLeaderMods(e, mods, dmg) {
   if (!mods || !e || e.hp <= 0) return;
   if (mods.burn > 0)      applyBurn(e, mods.burn * globalAllDmgMul());
   if (mods.slow > 0)      applySlow(e, mods.slow, 1.5);
-  if (mods.splash > 0)    splashDamage(e.x, e.y, mods.splash, dmg * 0.5, { type: "physical", src: "leader" });
+  if (mods.splash > 0)    splashDamage(e.x, e.y, mods.splash, dmg * 0.5, { type: mods.dmgType || "physical", src: "leader" });
   if (mods.lifesteal > 0) healBase((run.baseMaxHP || 100) * mods.lifesteal);
 }
 
@@ -2941,7 +2949,10 @@ function render() {
 
   if (run && run.active) {
     // ---- Knight defence zone: a clearly-visible arc in front of the wall ----
-    if (persist.equipped.includes("knight") && chMode() !== "trapmaster" && chMode() !== "command" && chMode() !== "spellbook") drawKnightZone();
+    // Knight AoE zones — hidden in modes where the field knight doesn't act
+    // (incl. Leader Mode when the knight is only a support, not the leader).
+    if (persist.equipped.includes("knight") && chMode() !== "trapmaster" && chMode() !== "command" && chMode() !== "spellbook"
+        && (chMode() !== "leader" || persist.equipped[0] === "knight")) drawKnightZone();
     // ---- Trapmaster: placed traps ----
     if (run.traps.length) drawTraps();
     // ---- Command Mode: the knight's held post ----
@@ -3233,7 +3244,38 @@ function drawBase() {
 const UNIT_DMG_TYPE = { archer: "archer", ranger: "archer", mage: "mage", cannon: "cannon", icewizard: "ice", firewizard: "fire", knight: "physical", assassin: "physical" };
 function pctTxt(x) { return (x >= 0 ? "+" : "−") + Math.round(Math.abs(x) * 100) + "%"; }
 function augLine(val, label, color) { return { txt: pctTxt(val) + " " + label, color: val < 0 ? "#ff8a80" : color }; }
-function unitAugmentLines(id) {
+function unitAugmentLines(id, slot) {
+  // Leader Mode: the cards double as the support-bonus readout — the
+  // leader's card lists everything it receives, each support's card
+  // shows what that unit grants (→). Values mirror leaderMods() exactly.
+  if (chMode() === "leader" && slot != null) {
+    if (slot > 0) {
+      const grants = {
+        assassin:   [{ txt: "→ +60% ldr dmg", color: "#ffd76b" }],
+        engineer:   [{ txt: "→ +25% ldr dmg", color: "#ffd76b" }],
+        cannon:     [{ txt: "→ +15% ldr dmg", color: "#ffd76b" }, { txt: "→ splash 120", color: DMG.mage }],
+        mage:       [{ txt: "→ splash 80", color: DMG.mage }],
+        firewizard: [{ txt: "→ fire + burn", color: DMG.fire }],
+        icewizard:  [{ txt: "→ ice dmg", color: DMG.ice }, { txt: "→ +20% slow", color: DMG.ice }],
+        knight:     [{ txt: "→ +30% slow", color: DMG.ice }],
+        priest:     [{ txt: "→ 2% heal/hit", color: DMG.heal }],
+        ranger:     [{ txt: "→ hunts fast", color: DMG.archer }],
+        archer:     [{ txt: "no ldr effect", color: "#97a3bd" }],
+      };
+      return grants[id] || [];
+    }
+    // Slot 0 — the leader: received support bonuses (plus its own augments below).
+    const m = leaderMods();
+    const recv = [];
+    if (m.dmgMul !== 1) recv.push(augLine(m.dmgMul - 1, "sup dmg", "#ffd76b"));
+    if (m.dmgType) recv.push({ txt: m.dmgType + " damage", color: dmgColor(m.dmgType) });
+    if (m.splash) recv.push({ txt: "splash " + m.splash, color: DMG.mage });
+    if (m.burn) recv.push({ txt: "burn on hit", color: DMG.fire });
+    if (m.slow) recv.push({ txt: pctTxt(m.slow) + " slow hit", color: DMG.ice });
+    if (m.lifesteal) recv.push({ txt: pctTxt(m.lifesteal) + " heal/hit", color: DMG.heal });
+    if (m.fastTarget && id === "archer") recv.push({ txt: "hunts fast", color: DMG.archer });
+    return recv.concat(unitAugmentLines(id)).slice(0, 6);
+  }
   const lines = [];
   // Damage: run-scoped multiplier = globalAllDmgMul with the talent term
   // factored out, times this unit's damage-type multiplier (curses show
@@ -3299,8 +3341,9 @@ function drawDefenders() {
       }
     }
     // Augment stats card under the defender (below the charge bar if shown).
+    // In Leader Mode it doubles as the support-bonus readout per slot.
     if (run && run.active) {
-      const lines = unitAugmentLines(id);
+      const lines = unitAugmentLines(id, i);
       if (lines.length) drawStatCard(p.x, p.y + (hasChargeBar ? 37 : 26), lines);
     }
     ctx.font = '20px sans-serif';   // restore for the next defender's emoji fallback

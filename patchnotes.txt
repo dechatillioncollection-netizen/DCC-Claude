@@ -26,6 +26,25 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.13.0 — UPDATE — 2026-07-15 11:58 SAST
+  Changed (HD Remaster only — Leader Mode support rework):
+    - Ice Wizard support: slow reduced 30% → 20%, but it now CONVERTS the
+      leader's hits to ICE damage (so ice-typed run buffs/curses like
+      Permafrost or Frozen Heart apply to the leader).
+    - Fire Wizard support: still applies its burn, and now also converts
+      the leader's hits to FIRE damage. If both elemental supports are
+      equipped, the later slot decides the element — order matters.
+    - Knight support: slow increased 20% → 30%.
+    - Leader projectiles/damage numbers take the converted element's
+      colour. Support-knight AoE zones are no longer drawn in Leader Mode
+      (the field knight only acts there when it IS the leader).
+  Added:
+    - Leader Mode support readout on the unit stat cards: the leader's
+      card lists everything it receives (support dmg multiplier, element
+      conversion, splash, burn, combined slow, heal-per-hit, targeting)
+      and each support's card shows what it grants ("→ +60% ldr dmg",
+      "→ ice dmg · +20% slow", … archer honestly shows "no ldr effect").
+
 v8.12.0 — UPDATE — 2026-07-14 13:36 SAST
   Added (HD Remaster only):
     - Per-unit augment stat cards: the defender formation is spread wider
