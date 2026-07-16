@@ -26,6 +26,13 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v9.9.0 — UPDATE — 2026-07-16 09:25 SAST
+  Added:
+    - Hero knight (Leader Mode) gains 25% of his TOTAL attack speed as
+      movement speed (base ×1.25; scales with attack-speed buffs and
+      archer supports). Card shows the live "+X% move spd". Synced from
+      the served branch (v8.16.0).
+
 v9.8.0 — UPDATE — 2026-07-15 12:20 SAST
   Changed:
     - Knight leader rework (Leader Mode): a single roaming hero instead
