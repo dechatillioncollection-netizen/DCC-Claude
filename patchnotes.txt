@@ -26,6 +26,14 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.16.0 — UPDATE — 2026-07-16 09:21 SAST
+  Added (HD Remaster only — Leader Mode):
+    - The hero knight gains 25% of his TOTAL attack speed as movement
+      speed: base 100% attack speed → ×1.25 movement; with attack-speed
+      buffs and archer supports stacked (e.g. Frenzy + Swift Hands + two
+      archers = 323% total) he moves at ×1.81. Faster swings, faster
+      feet — his card shows the live "+X% move spd" value.
+
 v8.15.0 — UPDATE — 2026-07-15 12:17 SAST
   Changed (HD Remaster only — Leader Mode):
     - Knight leader rework: instead of holding 2–5 field posts, a knight

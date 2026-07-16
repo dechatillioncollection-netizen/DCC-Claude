@@ -2281,8 +2281,16 @@ function knightSlash() {
    Same damage and radius per swing as a field post; movement speed is
    defined in arena-crossing seconds so it scales with any field size,
    exactly like enemy time-to-castle. */
-const HERO_TRAVERSE_TIME = 4;   // seconds for the hero to cross the arena
-function heroKnightTick(dt) {
+const HERO_TRAVERSE_TIME = 4;   // seconds for the hero to cross the arena (at base speed)
+// The hero's TOTAL attack speed: the knight's normal attack-speed
+// multiplier (talents + additive augments) × the archer supports' ×1.4s.
+function heroTotalAtkSpeed(mods) {
+  return attackSpeedMul("knight") * ((mods && mods.spdMul) || 1);
+}
+// Faster swings = faster feet: the hero gains 25% of his total attack
+// speed as movement speed (base 100% atk spd → ×1.25 move; 200% → ×1.5).
+function heroMoveMul(mods) { return 1 + 0.25 * heroTotalAtkSpeed(mods); }
+function heroKnightTick(dt, mods) {
   if (!run.heroKnight) run.heroKnight = { x: BASE.x, y: defenderRowY() - 30 };
   const h = run.heroKnight;
   // Stick to the current quarry until it dies or escapes, then re-acquire
@@ -2293,7 +2301,7 @@ function heroKnightTick(dt) {
   const dx = t.x - h.x, dy = t.y - h.y, dist = Math.hypot(dx, dy);
   const reach = knightRadius() * 0.55;   // park with the quarry well inside the AoE
   if (dist > reach) {
-    const step = Math.min(dist - reach, (fieldTravelDist() / HERO_TRAVERSE_TIME) * dt);
+    const step = Math.min(dist - reach, (fieldTravelDist() / HERO_TRAVERSE_TIME) * heroMoveMul(mods) * dt);
     h.x = clamp(h.x + (dx / dist) * step, 40, CANVAS_W - 40);
     h.y = clamp(h.y + (dy / dist) * step, 60, BASE_LINE - 10);
   }
@@ -2816,7 +2824,7 @@ function update(dt) {
   // Command Mode: the commanded knight holds its post and keeps attacking.
   if (mode === "command") commandKnightTick(dt);
   // Leader Mode: a knight leader is a single roaming hero (see heroKnightTick).
-  if (mode === "leader" && persist.equipped[0] === "knight") heroKnightTick(dt);
+  if (mode === "leader" && persist.equipped[0] === "knight") heroKnightTick(dt, lMods);
   // Decay temporary boosts and ability cooldowns.
   if (run.bonusDmgT > 0) run.bonusDmgT -= dt;
   if (run.bonusSpdT > 0) run.bonusSpdT -= dt;
@@ -3331,13 +3339,15 @@ function unitAugmentLines(id, slot) {
     if (m.dmgMul !== 1) recv.push(augLine(m.dmgMul - 1, "sup dmg", "#ffd76b"));
     // ×1.4 per archer support, multiplied AFTER all additive speed augments.
     if (m.spdMul !== 1) recv.push(augLine(m.spdMul - 1, "total spd", "#7cd6ff"));
+    // Hero knight: gains 25% of his TOTAL attack speed as movement speed.
+    if (id === "knight") recv.push(augLine(0.25 * heroTotalAtkSpeed(m), "move spd", "#9ccc65"));
     if (m.dmgType) recv.push({ txt: m.dmgType + " damage", color: dmgColor(m.dmgType) });
     if (m.splash) recv.push({ txt: "splash " + m.splash, color: DMG.mage });
     if (m.burn) recv.push({ txt: "burn on hit", color: DMG.fire });
     if (m.slow) recv.push({ txt: pctTxt(m.slow) + " slow hit", color: DMG.ice });
     if (m.lifesteal) recv.push({ txt: pctTxt(m.lifesteal) + " heal/hit", color: DMG.heal });
     if (m.fastTarget && ["archer", "mage", "cannon", "icewizard", "firewizard"].includes(id)) recv.push({ txt: "hunts fast", color: DMG.archer });
-    return recv.concat(unitAugmentLines(id)).slice(0, 6);
+    return recv.concat(unitAugmentLines(id)).slice(0, 7);
   }
   const lines = [];
   // Damage: run-scoped multiplier = globalAllDmgMul with the talent term
