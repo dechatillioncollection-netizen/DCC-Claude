@@ -26,6 +26,32 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v8.17.0 — UPDATE — 2026-07-20 09:18 SAST
+  Fixed (HD Remaster only — math-audit follow-up):
+    - Arena parity for areas & ranges: every gameplay radius (knight
+      zones, mage/cannon/ice splash, click splash/shockwave, Chain
+      Reaction, traps, leader splash, Spellbook blasts) and the Command
+      Mode aim ranges now scale by CANVAS_W/1600 via AOE(), so each
+      circle covers the same FRACTION of the enemy lane on any arena.
+      Desktop values are unchanged; the phone arena no longer makes AoE
+      loadouts ~1.9× stronger. Tap targets (enemyHitR) deliberately stay
+      big on phones.
+    - Units now engage enemies after the same fraction of their march on
+      any arena (exactly the old y=40 on desktop) instead of a fixed 40px.
+    - Engineer stat cards show each copy's OWN aura share (+16% each)
+      instead of printing the team total on every card.
+  Added:
+    - Burns now STACK across sources: each fire wizard slot, the leader
+      rider, traps and spells own one burn entry each (reapplying from
+      the same source refreshes it; different sources add). Duplicate
+      fire wizards finally multiply burn damage like every other stack;
+      capped at 8 entries. Fire wizard cards show "burn ×N stacks".
+    - Attack/cast-speed augments now shorten Spellbook ability cooldowns
+      (cooldown ÷ attack-speed multiplier, same additive rule as
+      everything else) — Frenzy/Swift Hands and the No-Click challenge
+      finally matter in Spellbook Mode. Cooldown bars track the
+      effective value.
+
 v8.16.0 — UPDATE — 2026-07-16 09:21 SAST
   Added (HD Remaster only — Leader Mode):
     - The hero knight gains 25% of his TOTAL attack speed as movement
