@@ -87,6 +87,14 @@ speedAugTimeMul()` — the SECONDS it takes to march from spawn (`SPAWN_Y`
 old speed system exactly. Per frame the enemy advances
 `fieldTravelDist() / ttc · dt` (slows scale the rate down), so **any arena
 size takes the same seconds to cross — difficulty is size-independent**.
+**Arena parity for areas (`AOE()`).** Every gameplay radius and aim range
+(knight zones, unit splash, click splash/shockwave, Chain Reaction, traps,
+leader splash, Spellbook blasts, Command aim) is multiplied by
+`fieldScale() = CANVAS_W / 1600` at use time, so each circle covers the
+same fraction of the enemy lane on any arena (desktop values unchanged).
+`engageTop()` is likewise a fraction of the march ((60/849)·travel, = the
+old y=40 on desktop). Tap targets (`enemyHitR`) deliberately do NOT scale.
+
 Speed augments (buff/challenge `enemySpeedMul`) convert to time directly
 via `speedAugTimeMul`: a combined "+X% speed" means X% *less time*
 (×1.25 → time ×0.75), clamped to [0.2, 3]. Wave scaling divides the time
@@ -168,7 +176,7 @@ cards, each showing "Owned: N" with Upgrade + Equip buttons) and **Talents**
 - **Ice Wizard** — frost ring; damages + **slows** every enemy in radius
   (type `ice`). Slow amount = `0.4 + 0.05·rank(t_ice_slow)`, +0.3 if
   Deep Freeze/Frozen Heart (capped 0.9), lasting 2.5 s.
-- **Fire Wizard** — direct hit (type `fire`) **plus** a burn DoT. Burn DPS
+- **Fire Wizard** — direct hit (type `fire`) **plus** a burn DoT. Burns STACK per source (`e.burns`, keyed entries: each fire-wizard slot / leader rider / trap / spell owns one; same key refreshes, cap 8). Burn DPS
   = `burn · (1+0.25·rank) · allDmgMul · typeMul(fire)`, lasting 3 s
   (×2 with Wildfire). Burn applies silently each frame and shows one
   combined fire number ~every 0.45 s.

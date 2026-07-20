@@ -1486,7 +1486,7 @@ function freshRun() {
     // ---- Behavioural-mode state ----
     traps: [],          // Trapmaster: placed traps
     charge: {},         // Overwatch: per-slot charge (seconds)
-    spellCd: {},        // Spellbook: per-slot ability cooldown remaining
+    spellCd: {}, spellCdMax: {},  // Spellbook: per-slot cooldown remaining + its effective max
     lives: 0, maxLives: 0, healPool: 0,   // No Wall
     bounty: null, bountyIdx: -1, spawnIndex: 0,   // Bounty Hunt
     bonusDmgT: 0, bonusSpdT: 0, overchargeT: 0,   // temporary wave/ability boosts
@@ -1731,7 +1731,7 @@ function spawnEnemy(type, wave) {
     reward: Math.ceil(t.reward * waveRewardMul(wave)),
     dmg: t.dmg + wave * 0.6, r: t.r,
     flying: !!t.flying, fast: !!t.fast, boss: !!t.boss,
-    slowT: 0, slowAmt: 0, burnT: 0, burnDps: 0, burnTick: 0, burnEmit: 0, flash: 0,
+    slowT: 0, slowAmt: 0, burns: [], burnTick: 0, burnEmit: 0, flash: 0,
   };
 }
 
@@ -1983,6 +1983,13 @@ const REF_TRAVEL_DIST = 829 - SPAWN_Y;              // reference spawn→wall di
 function enemyTravelTime(t) { return REF_TRAVEL_DIST / (t.spd * REF_SPEED_SCALE); }
 // Current spawn→wall distance; movement each frame is distance / ttc.
 function fieldTravelDist() { return BASE_LINE - SPAWN_Y; }
+// ARENA PARITY for areas/ranges: enemies spawn across the field WIDTH, so a
+// fixed-pixel AoE covers almost twice the lane on the narrow portrait arena.
+// Every gameplay radius/range runs through AOE(), which scales it by the
+// width ratio — the circle then covers the same FRACTION of the enemy lane
+// on any arena. Desktop (1600-wide) values are unchanged (scale = 1).
+function fieldScale() { return CANVAS_W / FIELD_LANDSCAPE.w; }
+function AOE(r) { return r * fieldScale(); }
 // Pick the field for the current screen orientation. Never changes the
 // arena mid-combat (positions would jump); everything derived — BASE,
 // BASE_LINE, scenery, canvas backing store — is recomputed.
@@ -2170,7 +2177,7 @@ function killEnemy(e) {
   // Bounty Hunt: killing the marked enemy grants a temporary wave bonus.
   if (e.bounty) { run.bounty = null; grantBountyReward(e); }
   // Chain Reaction: enemies explode on death, hurting nearby foes.
-  if (chHas("chain")) { boom(e.x, e.y, 90, DMG.cannon, "burst"); splashDamage(e.x, e.y, 90, e.maxHP * 0.25, { type: "cannon", src: "chain" }); }
+  if (chHas("chain")) { const cr = AOE(90); boom(e.x, e.y, cr, DMG.cannon, "burst"); splashDamage(e.x, e.y, cr, e.maxHP * 0.25, { type: "cannon", src: "chain" }); }
   if (e.boss) onBossKilled();
 }
 // Area damage. opts is passed straight through to damageEnemy so splash
@@ -2180,9 +2187,17 @@ function splashDamage(x, y, radius, dmg, opts) {
     if (Math.hypot(e.x - x, e.y - y) <= radius + e.r) damageEnemy(e, dmg, opts);
   }
 }
-function applyBurn(e, baseDps, durMul) {
-  let dur = 3 * (durMul || 1) * buffProd("burnDurMul"); // Wildfire ×2 / Burning Oil ×1.5
-  e.burnT = Math.max(e.burnT, dur); e.burnDps = Math.max(e.burnDps, baseDps * typeMul("fire"));
+// Burns STACK across sources: each source (a fire wizard slot, the leader
+// rider, a trap, a spell) owns ONE entry keyed by `key` — reapplying from
+// the same source refreshes that entry, while different sources add their
+// own, so duplicate fire wizards genuinely multiply burn damage.
+function applyBurn(e, baseDps, durMul, key) {
+  const dur = 3 * (durMul || 1) * buffProd("burnDurMul"); // Wildfire ×2 / Burning Oil ×1.5
+  e.burns = e.burns || [];
+  key = key || "burn";
+  const entry = { key, dps: baseDps * typeMul("fire"), t: dur };
+  const i = e.burns.findIndex(b => b.key === key);
+  if (i >= 0) e.burns[i] = entry; else if (e.burns.length < 8) e.burns.push(entry);
   e.burnSrc = "firewizard";   // attribute burn ticks to the fire wizard in the meter
 }
 function applySlow(e, amount, dur) {
@@ -2193,9 +2208,12 @@ function applySlow(e, amount, dur) {
 /* ---- Targeting ---- */
 // Units only engage enemies that have entered the viewable field. Enemies
 // spawn at y = -20 (above the top edge); this caps the max targeting range a
-// little so units can't shoot foes that aren't on-screen yet. Tune ENGAGE_TOP.
-const ENGAGE_TOP = 40;
-function engageable(e) { return e.y >= ENGAGE_TOP; }
+// little so units can't shoot foes that aren't on-screen yet.
+// Units engage once an enemy has covered the same FRACTION of its march on
+// any arena — (60/849) of the travel distance, which is exactly the old
+// y=40 constant on the 1600×900 field.
+function engageTop() { return SPAWN_Y + (60 / 849) * fieldTravelDist(); }
+function engageable(e) { return e.y >= engageTop(); }
 function nearestEnemyToBase() {
   let best = null, bestD = Infinity;
   for (const e of run.enemies) { if (!engageable(e)) continue; const d = BASE.y - e.y; if (d < bestD) { bestD = d; best = e; } }
@@ -2245,7 +2263,7 @@ const KNIGHT_POSTS = [
   { x: 0.50, y: 0.30 },
 ];
 function knightCount() { return Math.min(5, 2 + talentRank("t_knight_block")); }
-function knightRadius() { return unitStat("knight", "guard") + unitTalentBonus("knight", "guard").add; }
+function knightRadius() { return AOE(unitStat("knight", "guard") + unitTalentBonus("knight", "guard").add); }
 function knightPositions() { return KNIGHT_POSTS.slice(0, knightCount()).map(p => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H })); }
 // Overwatch: charged knight slash — DOUBLE range and heavy damage at each post.
 function knightSlash() {
@@ -2335,7 +2353,7 @@ function unitAttack(id, slot, mods) {
     case "mage": {
       // Slow purple ORB (visually distinct from archer arrows) + splash burst.
       const e = leaderTarget(mods);
-      if (e) { let r = (unitStat(id,"splash") + tb("splash").add) * buffProd("mageSplashMul");
+      if (e) { let r = AOE((unitStat(id,"splash") + tb("splash").add) * buffProd("mageSplashMul"));
         const atkType = (mods && mods.dmgType) || "mage", c = dmgColor(atkType);
         shoot(e.x, e.y, c, "orb", post.x, post.y); boom(e.x, e.y, r, c, "burst"); const d = dmgFor(); splashDamage(e.x, e.y, r, d, { type: atkType, src: "mage" }); applyLeaderMods(e, mods, d); }
       break;
@@ -2343,7 +2361,7 @@ function unitAttack(id, slot, mods) {
     case "cannon": {
       // Big orange area explosion, fired from the cannon's position.
       const e = leaderTarget(mods);
-      if (e) { const r = unitStat(id,"splash") + tb("splash").add;
+      if (e) { const r = AOE(unitStat(id,"splash") + tb("splash").add);
         const atkType = (mods && mods.dmgType) || "cannon", c = dmgColor(atkType);
         shoot(e.x, e.y, c, "orb", post.x, post.y); boom(e.x, e.y, r, c, "burst"); boom(e.x, e.y, r, c, "ring"); const d = dmgFor(); splashDamage(e.x, e.y, r, d, { type: atkType, src: "cannon" }); applyLeaderMods(e, mods, d); }
       break;
@@ -2351,7 +2369,7 @@ function unitAttack(id, slot, mods) {
     case "icewizard": {
       // Pale-blue frost burst; clearly slows everything it hits.
       const e = leaderTarget(mods);
-      if (e) { const r = unitStat(id,"splash"); let slow = unitStat(id,"slow") + (unitTalentBonus(id,"slow").mul - 1);
+      if (e) { const r = AOE(unitStat(id,"splash")); let slow = unitStat(id,"slow") + (unitTalentBonus(id,"slow").mul - 1);
         slow = Math.min(0.9, slow + buffSum("slowAdd"));   // Deep Freeze / Frostbite / Frozen Heart
         const atkType = (mods && mods.dmgType) || "ice", c = dmgColor(atkType);
         shoot(e.x, e.y, c, "orb", post.x, post.y); boom(e.x, e.y, r, c, "ring");
@@ -2365,7 +2383,7 @@ function unitAttack(id, slot, mods) {
       const e = leaderTarget(mods);
       if (e) { const burn = unitStat(id,"burn") * tb("burn").mul * allDmgMul;
         const atkType = (mods && mods.dmgType) || "fire", c = dmgColor(atkType);
-        shoot(e.x, e.y, c, "orb", post.x, post.y); const d = dmgFor(); damageEnemy(e, d, { type: atkType, src: "firewizard" }); applyBurn(e, burn); applyLeaderMods(e, mods, d); }
+        shoot(e.x, e.y, c, "orb", post.x, post.y); const d = dmgFor(); damageEnemy(e, d, { type: atkType, src: "firewizard" }); applyBurn(e, burn, 1, "fw" + slot); applyLeaderMods(e, mods, d); }
       break;
     }
     case "knight": {
@@ -2452,9 +2470,9 @@ function leaderMods() {
 }
 function applyLeaderMods(e, mods, dmg) {
   if (!mods || !e || e.hp <= 0) return;
-  if (mods.burn > 0)      applyBurn(e, mods.burn * globalAllDmgMul());
+  if (mods.burn > 0)      applyBurn(e, mods.burn * globalAllDmgMul(), 1, "leader");
   if (mods.slow > 0)      applySlow(e, mods.slow, 1.5);
-  if (mods.splash > 0)    splashDamage(e.x, e.y, mods.splash, dmg * 0.5, { type: mods.dmgType || "physical", src: "leader" });
+  if (mods.splash > 0)    splashDamage(e.x, e.y, AOE(mods.splash), dmg * 0.5, { type: mods.dmgType || "physical", src: "leader" });
   if (mods.lifesteal > 0) healBase((run.baseMaxHP || 100) * mods.lifesteal);
 }
 
@@ -2470,19 +2488,19 @@ function unitAttackAt(id, slot, tx, ty, dmgMul) {
     case "archer": case "ranger": {
       const e = nearestEnemyTo(tx, ty);
       shoot(tx, ty, DMG.archer, "arrow", post.x, post.y);
-      if (e && Math.hypot(e.x - tx, e.y - ty) < 220) damageEnemy(e, dmg * (id === "ranger" && (e.fast || e.flying) ? 1.5 : 1), { type: "archer", src: id });
+      if (e && Math.hypot(e.x - tx, e.y - ty) < AOE(220)) damageEnemy(e, dmg * (id === "ranger" && (e.fast || e.flying) ? 1.5 : 1), { type: "archer", src: id });
       break;
     }
     case "assassin": {
-      let best = null, bhp = -1; for (const e of nearAim(240)) if (e.hp > bhp) { bhp = e.hp; best = e; }
+      let best = null, bhp = -1; for (const e of nearAim(AOE(240))) if (e.hp > bhp) { bhp = e.hp; best = e; }
       shoot(tx, ty, "#ff8a80", "arrow", post.x, post.y);
       if (best) { const strong = best.boss || best.type === "tank"; damageEnemy(best, dmg * (strong ? (unitStat(id, "critMul") + tb("crit").add) : 1), { type: "physical", crit: strong, src: id }); }
       break;
     }
-    case "mage": { const r = (unitStat(id, "splash") + tb("splash").add) * buffProd("mageSplashMul"); shoot(tx, ty, DMG.mage, "orb", post.x, post.y); boom(tx, ty, r, DMG.mage, "burst"); splashDamage(tx, ty, r, dmg, { type: "mage", src: id }); break; }
-    case "cannon": { const r = unitStat(id, "splash") + tb("splash").add; shoot(tx, ty, DMG.cannon, "orb", post.x, post.y); boom(tx, ty, r, DMG.cannon, "burst"); boom(tx, ty, r, DMG.cannon, "ring"); splashDamage(tx, ty, r, dmg, { type: "cannon", src: id }); break; }
-    case "icewizard": { const r = unitStat(id, "splash"); const slow = Math.min(0.9, unitStat(id, "slow") + (unitTalentBonus(id, "slow").mul - 1) + buffSum("slowAdd")); shoot(tx, ty, DMG.ice, "orb", post.x, post.y); boom(tx, ty, r, DMG.ice, "ring"); for (const t of nearAim(r)) { damageEnemy(t, dmg, { type: "ice", src: id }); applySlow(t, slow, unitStat(id, "slowDur")); } break; }
-    case "firewizard": { const r = 90; const burn = unitStat(id, "burn") * tb("burn").mul * globalAllDmgMul(); shoot(tx, ty, DMG.fire, "orb", post.x, post.y); boom(tx, ty, r, DMG.fire, "burst"); for (const t of nearAim(r)) { damageEnemy(t, dmg, { type: "fire", src: id }); applyBurn(t, burn); } break; }
+    case "mage": { const r = AOE((unitStat(id, "splash") + tb("splash").add) * buffProd("mageSplashMul")); shoot(tx, ty, DMG.mage, "orb", post.x, post.y); boom(tx, ty, r, DMG.mage, "burst"); splashDamage(tx, ty, r, dmg, { type: "mage", src: id }); break; }
+    case "cannon": { const r = AOE(unitStat(id, "splash") + tb("splash").add); shoot(tx, ty, DMG.cannon, "orb", post.x, post.y); boom(tx, ty, r, DMG.cannon, "burst"); boom(tx, ty, r, DMG.cannon, "ring"); splashDamage(tx, ty, r, dmg, { type: "cannon", src: id }); break; }
+    case "icewizard": { const r = AOE(unitStat(id, "splash")); const slow = Math.min(0.9, unitStat(id, "slow") + (unitTalentBonus(id, "slow").mul - 1) + buffSum("slowAdd")); shoot(tx, ty, DMG.ice, "orb", post.x, post.y); boom(tx, ty, r, DMG.ice, "ring"); for (const t of nearAim(r)) { damageEnemy(t, dmg, { type: "ice", src: id }); applySlow(t, slow, unitStat(id, "slowDur")); } break; }
+    case "firewizard": { const r = AOE(90); const burn = unitStat(id, "burn") * tb("burn").mul * globalAllDmgMul(); shoot(tx, ty, DMG.fire, "orb", post.x, post.y); boom(tx, ty, r, DMG.fire, "burst"); for (const t of nearAim(r)) { damageEnemy(t, dmg, { type: "fire", src: id }); applyBurn(t, burn, 1, "fw" + slot); } break; }
     case "knight": { const r = knightRadius(); const slow = unitStat(id, "slow") * (1 + talentEffect("t_knight_block")); boom(tx, ty, r, "#ef5353", "ring"); for (const t of nearAim(r)) { damageEnemy(t, dmg, { type: "physical", src: id }); applySlow(t, slow, 0.8); } break; }
     case "priest": { healBase(unitStat(id, "heal") * (1 + talentEffect("t_priest_heal")) * buffProd("priestHealMul") * 4); break; }
     case "engineer": { healBase(unitStat(id, "repair") * (1 + talentEffect("t_eng_buff")) * 4); break; }
@@ -2540,8 +2558,8 @@ function placeTrap(mx, my) {
   run.trapIdx++;
   const def = TRAP_DEFS[id]; if (!def) return;
   const dmg = def.dmgMul ? unitStat(id, "dmg") * def.dmgMul * globalAllDmgMul() : 0;
-  run.traps.push({ id, x: mx, y: my, r: def.r, life: def.life, t: 0, tickT: 0, def, dmg });
-  boom(mx, my, def.r, def.color, "ring");
+  run.traps.push({ id, x: mx, y: my, r: AOE(def.r), life: def.life, t: 0, tickT: 0, def, dmg });
+  boom(mx, my, AOE(def.r), def.color, "ring");
   log("Placed " + def.name + ".");
 }
 function updateTraps(dt) {
@@ -2553,7 +2571,7 @@ function updateTraps(dt) {
       if (hitList.length) {
         boom(tr.x, tr.y, tr.r, d.color, "burst");
         splashDamage(tr.x, tr.y, tr.r, tr.dmg, { type: d.type || "physical", src: tr.id, crit: !!d.crit });
-        if (d.burn) for (const e of hitList) applyBurn(e, unitStat(tr.id, "burn") * globalAllDmgMul());
+        if (d.burn) for (const e of hitList) applyBurn(e, unitStat(tr.id, "burn") * globalAllDmgMul(), 1, "trap");
         remove = true;
       }
     } else {
@@ -2564,7 +2582,7 @@ function updateTraps(dt) {
         for (const e of run.enemies) if (Math.hypot(e.x - tr.x, e.y - tr.y) <= tr.r + e.r) {
           if (tr.dmg > 0) damageEnemy(e, tr.dmg * d.tick, { type: d.type || "physical", src: tr.id });
           if (d.slow) applySlow(e, d.slow, 1);
-          if (d.burn) applyBurn(e, unitStat(tr.id, "burn") * globalAllDmgMul());
+          if (d.burn) applyBurn(e, unitStat(tr.id, "burn") * globalAllDmgMul(), 1, "trap");
         }
       }
     }
@@ -2574,13 +2592,13 @@ function updateTraps(dt) {
 
 // --- Spellbook: each equipped unit is an active ability with a cooldown ---
 function spellDmg(id, mul) { return unitStat(id, "dmg") * mul * globalAllDmgMul(); }
-function frontEnemies(frac) { return run.enemies.filter(e => e.y >= CANVAS_H * (1 - frac) && e.y >= ENGAGE_TOP); }
+function frontEnemies(frac) { return run.enemies.filter(e => e.y >= CANVAS_H * (1 - frac) && e.y >= engageTop()); }
 const SPELLS = {
-  archer:    { name:"Arrow Rain",   cd:6,  cast:() => { for (const e of run.enemies.slice()) if (e.y >= ENGAGE_TOP) damageEnemy(e, spellDmg("archer", 4), { type:"archer", src:"archer" }); for (let i=0;i<14;i++) run.projectiles.push({ x: rand(0,CANVAS_W), y:0, tx: rand(0,CANVAS_W), ty: rand(200,BASE_LINE), color: DMG.archer, style:"arrow", life:0.25, t:0 }); } },
+  archer:    { name:"Arrow Rain",   cd:6,  cast:() => { for (const e of run.enemies.slice()) if (e.y >= engageTop()) damageEnemy(e, spellDmg("archer", 4), { type:"archer", src:"archer" }); for (let i=0;i<14;i++) run.projectiles.push({ x: rand(0,CANVAS_W), y:0, tx: rand(0,CANVAS_W), ty: rand(200,BASE_LINE), color: DMG.archer, style:"arrow", life:0.25, t:0 }); } },
   ranger:    { name:"Focus Shot",   cd:5,  cast:() => { const e = nearestEnemyTo(BASE.x, BASE.y, en => en.fast || en.flying) || strongestEnemy(); if (e) { shoot(e.x, e.y, DMG.archer, "arrow"); damageEnemy(e, spellDmg("ranger", 9), { type:"archer", src:"ranger" }); } } },
-  mage:      { name:"Arcane Blast", cd:7,  cast:() => { const e = nearestEnemyToBase(); const x = e?e.x:BASE.x, y = e?e.y:400; boom(x,y,170,DMG.mage,"burst"); splashDamage(x,y,170, spellDmg("mage",5), { type:"mage", src:"mage" }); } },
-  cannon:    { name:"Bombardment",  cd:9,  cast:() => { const list = frontEnemies(1).sort((a,b)=>b.y-a.y).slice(0,3); const spots = list.length?list:[{x:BASE.x,y:400}]; for (const e of spots) { boom(e.x,e.y,130,DMG.cannon,"burst"); splashDamage(e.x,e.y,130, spellDmg("cannon",3), { type:"cannon", src:"cannon" }); } } },
-  firewizard:{ name:"Flame Wave",   cd:8,  cast:() => { for (const e of run.enemies.slice()) { applyBurn(e, unitStat("firewizard","burn")*globalAllDmgMul()*2, 2); damageEnemy(e, spellDmg("firewizard",3), { type:"fire", src:"firewizard" }); } } },
+  mage:      { name:"Arcane Blast", cd:7,  cast:() => { const e = nearestEnemyToBase(); const x = e?e.x:BASE.x, y = e?e.y:400; const sr2 = AOE(170); boom(x,y,sr2,DMG.mage,"burst"); splashDamage(x,y,sr2, spellDmg("mage",5), { type:"mage", src:"mage" }); } },
+  cannon:    { name:"Bombardment",  cd:9,  cast:() => { const list = frontEnemies(1).sort((a,b)=>b.y-a.y).slice(0,3); const spots = list.length?list:[{x:BASE.x,y:400}]; for (const e of spots) { const br = AOE(130); boom(e.x,e.y,br,DMG.cannon,"burst"); splashDamage(e.x,e.y,br, spellDmg("cannon",3), { type:"cannon", src:"cannon" }); } } },
+  firewizard:{ name:"Flame Wave",   cd:8,  cast:() => { for (const e of run.enemies.slice()) { applyBurn(e, unitStat("firewizard","burn")*globalAllDmgMul()*2, 2, "spell"); damageEnemy(e, spellDmg("firewizard",3), { type:"fire", src:"firewizard" }); } } },
   icewizard: { name:"Freeze Field", cd:8,  cast:() => { for (const e of run.enemies.slice()) { damageEnemy(e, spellDmg("icewizard",2), { type:"ice", src:"icewizard" }); applySlow(e, 0.7, 4); } } },
   knight:    { name:"Shield Slam",  cd:7,  cast:() => { for (const e of frontEnemies(0.45)) { damageEnemy(e, spellDmg("knight",5), { type:"physical", src:"knight" }); applySlow(e, 0.6, 2); } } },
   assassin:  { name:"Execute Strike",cd:6, cast:() => { const e = strongestEnemy(); if (e) { shoot(e.x, e.y, "#ff8a80", "arrow"); damageEnemy(e, spellDmg("assassin",10) * 3, { type:"physical", crit:true, src:"assassin" }); } } },
@@ -2590,7 +2608,11 @@ function castSpell(slot) {
   if (chMode() !== "spellbook" || GS !== "COMBAT") return;
   const id = persist.equipped[slot]; const sp = SPELLS[id]; if (!sp) return;
   if ((run.spellCd[slot] || 0) > 0) return;
-  sp.cast(); run.spellCd[slot] = sp.cd;
+  // Attack/cast-speed augments shorten ability cooldowns on the same
+  // additive rule as everything else: 125% speed = cooldown ÷ 1.25.
+  const effCd = sp.cd / attackSpeedMul(id);
+  sp.cast(); run.spellCd[slot] = effCd;
+  if (run.spellCdMax) run.spellCdMax[slot] = effCd;
   if (run.muzzle) run.muzzle[slot] = 0.25;   // casting pose (visual only)
   renderSpellBar();
 }
@@ -2727,15 +2749,21 @@ function update(dt) {
   for (const e of run.enemies.slice()) {
     // Burn damage-over-time: apply silently each frame but only emit ONE
     // combined fire-coloured number a few times per second (keeps it readable).
-    if (e.burnT > 0) {
-      e.burnT -= dt;
-      const tick = e.burnDps * dt;
-      damageEnemySilent(e, tick, e.burnSrc || "firewizard"); e.burnTick += tick; e.flash = Math.max(e.flash, 0.03);
-      e.burnEmit -= dt;
-      if (e.burnEmit <= 0) { e.burnEmit = 0.45; if (e.burnTick >= 1) { spawnText(e.x, e.y - e.r - 4, Math.round(e.burnTick), DMG.fire, {}); e.burnTick = 0; } }
-      // Rising embers while burning (visual only).
-      if (Math.random() < dt * 7) spawnParticles(e.x + rand(-10, 10), e.y, DMG.fire, { n: 1, spd: 18, vy: -55, g: -50, size: 2.4, life: 0.7 });
-      if (e.hp <= 0) { killEnemy(e); continue; }
+    if (e.burns && e.burns.length) {
+      let burnDps = 0;
+      for (let bi = e.burns.length - 1; bi >= 0; bi--) {
+        const b = e.burns[bi]; b.t -= dt;
+        if (b.t <= 0) e.burns.splice(bi, 1); else burnDps += b.dps;
+      }
+      if (burnDps > 0) {
+        const tick = burnDps * dt;
+        damageEnemySilent(e, tick, e.burnSrc || "firewizard"); e.burnTick += tick; e.flash = Math.max(e.flash, 0.03);
+        e.burnEmit -= dt;
+        if (e.burnEmit <= 0) { e.burnEmit = 0.45; if (e.burnTick >= 1) { spawnText(e.x, e.y - e.r - 4, Math.round(e.burnTick), DMG.fire, {}); e.burnTick = 0; } }
+        // Rising embers while burning (visual only).
+        if (Math.random() < dt * 7) spawnParticles(e.x + rand(-10, 10), e.y, DMG.fire, { n: 1, spd: 18, vy: -55, g: -50, size: 2.4, life: 0.7 });
+        if (e.hp <= 0) { killEnemy(e); continue; }
+      }
     }
     // Advance by (current arena distance ÷ time-to-castle): the same enemy
     // crosses ANY arena size in the same number of seconds. Active slows
@@ -3045,9 +3073,10 @@ function render() {
       ctx.fillStyle = "rgba(0,0,0,.26)";
       ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 1.15, e.r * 1.4, e.r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
       // Status auras under the sprite: warm glow while burning, cold while slowed.
-      if (e.burnT > 0 || e.slowT > 0) {
+      const burning = e.burns && e.burns.length > 0;
+      if (burning || e.slowT > 0) {
         const ar = spriteSize * 0.42;
-        const c = e.burnT > 0 ? "255,122,51" : "140,210,255";
+        const c = burning ? "255,122,51" : "140,210,255";
         const aura = ctx.createRadialGradient(e.x, e.y, ar * 0.2, e.x, e.y, ar);
         aura.addColorStop(0, "rgba(" + c + ",0.30)"); aura.addColorStop(1, "rgba(" + c + ",0)");
         ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(e.x, e.y, ar, 0, Math.PI * 2); ctx.fill();
@@ -3098,7 +3127,7 @@ function render() {
       // Status effects shown as clear icons just BELOW the enemy: ❄ slowed, 🔥 burning.
       let statusIcons = "";
       if (e.slowT > 0) statusIcons += "❄";
-      if (e.burnT > 0) statusIcons += "🔥";
+      if (e.burns && e.burns.length) statusIcons += "🔥";
       if (statusIcons) {
         ctx.font = Math.round(spriteSize * 0.22) + "px sans-serif";
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -3351,9 +3380,21 @@ function unitAugmentLines(id, slot) {
     case "archer": { const ex = Math.floor(buffSum("extraShots")); if (ex) lines.push({ txt: "+" + ex + " shot" + (ex > 1 ? "s" : ""), color: DMG.archer }); break; }
     case "mage": { const m = buffProd("mageSplashMul") - 1; if (Math.abs(m) >= 0.005) lines.push(augLine(m, "splash", DMG.mage)); break; }
     case "icewizard": { const s = buffSum("slowAdd"); if (s) lines.push(augLine(s, "slow", DMG.ice)); break; }
-    case "firewizard": { const b = buffProd("burnDurMul") - 1; if (Math.abs(b) >= 0.005) lines.push(augLine(b, "burn dur", DMG.fire)); break; }
+    case "firewizard": {
+      const b = buffProd("burnDurMul") - 1; if (Math.abs(b) >= 0.005) lines.push(augLine(b, "burn dur", DMG.fire));
+      const nFire = persist.equipped.filter(x => x === "firewizard").length;
+      if (nFire > 1) lines.push({ txt: "burn ×" + nFire + " stacks", color: DMG.fire });
+      break;
+    }
     case "priest": { const h = buffProd("priestHealMul") - 1; if (Math.abs(h) >= 0.005) lines.push(augLine(h, "heal", DMG.heal)); break; }
-    case "engineer": { const e = engineerBuffMul() - 1; if (e >= 0.005) lines.push(augLine(e, "team dmg", "#ffd76b")); break; }
+    case "engineer": {
+      // Show THIS copy's contribution (the aura total already appears in
+      // every damage unit's "+X% dmg" line — showing the total on every
+      // engineer card would read as double-counting).
+      const per = unitStat("engineer", "buff") * (1 + talentEffect("t_eng_buff"));
+      if (per >= 0.005) lines.push(augLine(per, "team dmg", "#ffd76b"));
+      break;
+    }
   }
   return lines.slice(0, 3);
 }
@@ -3508,14 +3549,14 @@ canvas.addEventListener("click", (ev) => {
   if (target) {
     damageEnemy(target, dmg, { type: "physical", crit, src: "click" });
     // Click Splash talent: a small physical splash around the struck enemy.
-    const sr = talentEffect("click_splash");
+    const sr = AOE(talentEffect("click_splash"));
     if (sr > 0) splashDamage(target.x, target.y, sr, dmg * 0.5, { type: "physical", src: "click" });
   }
 
   // Click Shockwave (AOE) talent: always blasts the clicked position with a
   // distinct burst+ring visual. Radius (talentEffect) and damage both grow
   // with rank; enemies inside the ring take orange explosion-typed damage.
-  const aoeR = talentEffect("click_aoe");
+  const aoeR = AOE(talentEffect("click_aoe"));
   if (aoeR > 0) {
     aoeBurst(mx, my, aoeR);
     const aoeRank = talentRank("click_aoe");
@@ -3622,9 +3663,10 @@ function renderSpellBar() {
   for (let i = 0; i < persist.equipped.length; i++) {
     const id = persist.equipped[i], sp = SPELLS[id]; if (!sp) continue;
     const cd = run.spellCd[i] || 0, ready = cd <= 0;
+    const cdMax = (run.spellCdMax && run.spellCdMax[i]) || sp.cd;
     const btn = document.createElement("button");
     btn.className = "spell-btn"; btn.disabled = !ready;
-    const pct = ready ? 0 : Math.round((cd / sp.cd) * 100);
+    const pct = ready ? 0 : Math.round((cd / cdMax) * 100);
     btn.innerHTML = '<span class="sp-cd" style="width:' + pct + '%"></span>' +
       '<div class="sp-name">' + (UNITS[id].emoji || "") + " " + sp.name + '</div>' +
       '<div class="sp-sub">' + (ready ? "READY" : cd.toFixed(1) + "s") + '</div>';

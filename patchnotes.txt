@@ -26,6 +26,18 @@
 >>>       - ...
 ----------------------------------------------------------------
 
+v9.10.0 — UPDATE — 2026-07-20 09:22 SAST
+  Fixed (math-audit follow-up):
+    - Arena parity: all gameplay radii/ranges scale by CANVAS_W/1600
+      (AOE()) for equal lane coverage on any arena; engagement threshold
+      is a fraction of the march (desktop unchanged); engineer cards
+      show each copy's own aura share.
+  Added:
+    - Burns stack per source (duplicate fire wizards multiply burn
+      damage; same source refreshes; cap 8) with "burn ×N stacks" cards.
+    - Spellbook cooldowns honour attack speed (cd ÷ attackSpeedMul).
+      Synced from the served branch (v8.17.0).
+
 v9.9.0 — UPDATE — 2026-07-16 09:25 SAST
   Added:
     - Hero knight (Leader Mode) gains 25% of his TOTAL attack speed as
