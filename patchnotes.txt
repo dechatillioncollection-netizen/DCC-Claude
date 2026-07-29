@@ -26,23 +26,6 @@
 >>>       - ...
 ----------------------------------------------------------------
 
-v8.18.0 — UPDATE — 2026-07-29 14:46 SAST
-  Added (repo docs — does not touch the game):
-    - python-course/ — a full 21-lesson beginner Python course written for
-      someone whose Python comes from "The Farmer Was Replaced". Covers
-      setup, types, strings, numbers, control flow, lists/tuples/dicts/sets,
-      functions, comprehensions, exceptions, files & JSON, modules, the
-      standard library, classes, generators, decorators, testing/venvs, and
-      five capstone projects. Every built-in introduced gets a box with a
-      short description, a small example, when to use it, and the mistake
-      people make with it (e.g. code after `return` never runs). Each lesson
-      ends with exercises plus worked solutions. Includes a one-page
-      cheatsheet.
-    - python-course/examples/farm.py — a runnable mini re-creation of The
-      Farmer Was Replaced in plain Python (move/plant/harvest/can_harvest on
-      a wrapping grid), used as the course's final project. Verified running
-      under Python 3.11.
-
 v8.17.0 — UPDATE — 2026-07-20 09:18 SAST
   Fixed (HD Remaster only — math-audit follow-up):
     - Arena parity for areas & ranges: every gameplay radius (knight
