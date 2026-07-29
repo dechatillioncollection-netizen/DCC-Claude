@@ -331,9 +331,9 @@ if __name__ == "__main__":
 ```
 You have 20 coins.
 
-pumpkin      1.22 coins/day
-carrot       0.80 coins/day
-wheat        0.67 coins/day
+pumpkin     1.22 coins/day
+carrot      0.80 coins/day
+wheat       0.67 coins/day
 
 Plant pumpkin.
 ```

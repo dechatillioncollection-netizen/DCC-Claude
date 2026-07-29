@@ -66,6 +66,12 @@ Python are different skills, and only one of them is the one you want.
 | 19 | [19-debugging-and-testing.md](19-debugging-and-testing.md) | Tracebacks in anger, `assert`, `pytest`, `pdb`, venvs and `pip` |
 | 20 | [20-capstone-projects.md](20-capstone-projects.md) | Five projects, ending with your own farm simulator |
 | — | [cheatsheet.md](cheatsheet.md) | Everything on one page, for later |
+| — | [examples/farm.py](examples/farm.py) | A runnable mini *Farmer Was Replaced*, in real Python |
+
+The `examples/farm.py` file is the payoff — it re-creates the game's drone API
+(`move`, `plant`, `harvest`, `can_harvest`) in plain Python you can read and
+change. Run it with `python farm.py` once you've reached Lesson 16, then write
+your own drone programs in it.
 
 ---
 
