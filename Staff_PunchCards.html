@@ -1,0 +1,1937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Staff Punch Card</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f0f2f5;
+      --surface: #ffffff;
+      --surface2: #f8f9fb;
+      --border: #e2e6ea;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --green: #16a34a;
+      --green-light: #dcfce7;
+      --green-border: #86efac;
+      --red: #dc2626;
+      --red-light: #fee2e2;
+      --amber: #d97706;
+      --text: #111827;
+      --text-muted: #6b7280;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+      --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--primary);
+      color: #fff;
+      padding: 18px 20px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(37,99,235,.35);
+    }
+    header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; }
+    header p  { font-size: .8rem; opacity: .8; margin-top: 2px; }
+
+    /* ── Layout ── */
+    main { max-width: 720px; margin: 0 auto; padding: 20px 16px 100px; }
+
+    /* ── Section divider ── */
+    .section-title {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--text-muted);
+      margin: 36px 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Summary boxes ── */
+    .summary-grid { display: grid; gap: 12px; margin-bottom: 20px; }
+    .summary-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+    }
+    .summary-label {
+      font-size: .7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .summary-row { display: flex; align-items: flex-start; gap: 10px; }
+    .summary-text {
+      flex: 1;
+      font-size: .88rem;
+      line-height: 1.5;
+      color: var(--text);
+      word-break: break-word;
+      min-height: 1.4em;
+    }
+    .summary-text.empty { color: var(--text-muted); font-style: italic; }
+    .copy-btn {
+      flex-shrink: 0;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: .8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    .copy-btn:hover { background: var(--primary-dark); }
+    .copy-btn.copied { background: var(--green); }
+
+    /* ── Controls bar ── */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .filter-tabs {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      flex: 1;
+      min-width: 200px;
+    }
+    .filter-tab {
+      flex: 1;
+      padding: 8px 6px;
+      border: none;
+      background: transparent;
+      font-size: .82rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all .15s;
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .filter-tab:last-child { border-right: none; }
+    .filter-tab.active {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+    }
+    .sort-select {
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: .82rem;
+      font-weight: 500;
+      color: var(--text);
+      background: var(--surface);
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      box-shadow: var(--shadow);
+    }
+    .sort-select:focus { outline: none; border-color: var(--primary); }
+    .add-btn {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 14px;
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      transition: background .15s;
+      box-shadow: var(--shadow);
+    }
+    .add-btn:hover { background: var(--primary-dark); }
+    .add-btn.select-active {
+      background: var(--amber);
+    }
+    .add-btn.select-active:hover { background: #b45309; }
+
+    /* ── Staff grid ── */
+    .staff-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+      gap: 14px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--text-muted);
+      grid-column: 1/-1;
+    }
+    .empty-state svg { opacity: .3; margin-bottom: 12px; }
+    .empty-state p { font-size: .9rem; }
+
+    /* ── Staff card ── */
+    .card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 12px 12px;
+      text-align: center;
+      transition: transform .15s, box-shadow .15s, border-color .15s, background .15s;
+      position: relative;
+      box-shadow: var(--shadow);
+      user-select: none;
+    }
+    .card.not-working { opacity: .72; }
+    .card.working-today {
+      border-color: #93c5fd;
+      background: linear-gradient(160deg, #eff6ff, #fff);
+    }
+    .card.on-duty {
+      border-color: var(--green-border);
+      background: linear-gradient(160deg, #f0fdf4, #fff);
+    }
+    .card.off-duty-done {
+      border-color: #d1d5db;
+      background: linear-gradient(160deg, #f9fafb, #fff);
+    }
+    .card.on-duty:hover, .card.working-today:hover, .card.off-duty-done:hover {
+      transform: translateY(-2px); box-shadow: var(--shadow-md);
+    }
+    /* selected card in multi-select mode */
+    .card.selected {
+      border-color: var(--primary) !important;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.18) !important;
+    }
+
+    .card-actions {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    .card:hover .card-actions { opacity: 1; }
+    .icon-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: .75rem;
+      color: var(--text-muted);
+      transition: all .12s;
+    }
+    .icon-btn:hover { background: var(--red-light); color: var(--red); border-color: #fca5a5; }
+    .icon-btn.edit:hover { background: #eff6ff; color: var(--primary); border-color: #bfdbfe; }
+
+    /* Select-mode checkmark on cards */
+    .select-check {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: .75rem;
+      transition: all .12s;
+    }
+    .card.selectable .select-check { display: flex; }
+    .card.selected .select-check {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      margin: 0 auto 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fff;
+      position: relative;
+    }
+    .avatar img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .status-dot {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--surface);
+      background: #d1d5db;
+    }
+    .on-duty .status-dot       { background: var(--green); }
+    .working-today .status-dot { background: #3b82f6; }
+    .off-duty-done .status-dot { background: #9ca3af; }
+
+    .card-working-toggle {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .working-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: .72rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--surface2);
+      color: var(--text-muted);
+      transition: all .15s;
+    }
+    .working-toggle-btn:hover { border-color: #93c5fd; color: #2563eb; background: #eff6ff; }
+    .working-toggle-btn.active { border-color: #93c5fd; color: #1d4ed8; background: #dbeafe; }
+
+    .card-name {
+      font-size: .9rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+    .card-dept {
+      font-size: .72rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 8px;
+    }
+    .card-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: .75rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 20px;
+      background: #f3f4f6;
+      color: var(--text-muted);
+    }
+    .on-duty .card-status { background: var(--green-light); color: var(--green); }
+    .working-today .card-status { background: #dbeafe; color: #1d4ed8; }
+    .off-duty-done .card-status { background: #f3f4f6; color: #6b7280; }
+    .card-time {
+      font-size: .72rem;
+      color: var(--text-muted);
+      margin-top: 5px;
+    }
+
+    /* ── Bulk action bar (fixed bottom) ── */
+    .bulk-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #1e3a5f;
+      color: #fff;
+      padding: 12px 20px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      z-index: 300;
+      box-shadow: 0 -4px 20px rgba(0,0,0,.25);
+    }
+    .bulk-bar.open { display: flex; }
+    .bulk-count {
+      font-weight: 700;
+      font-size: .9rem;
+      flex: 1;
+      min-width: 90px;
+    }
+    .bulk-time {
+      border: 1.5px solid rgba(255,255,255,.3);
+      border-radius: 8px;
+      background: rgba(255,255,255,.12);
+      color: #fff;
+      padding: 7px 10px;
+      font-size: .85rem;
+      width: 110px;
+    }
+    .bulk-time::-webkit-calendar-picker-indicator { filter: invert(1); opacity: .6; cursor: pointer; }
+    .bulk-shortcut {
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.25);
+      color: #fff;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: .82rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .bulk-shortcut:hover { background: rgba(255,255,255,.28); }
+    .bulk-apply {
+      background: var(--green);
+      border: none;
+      color: #fff;
+      border-radius: 8px;
+      padding: 7px 18px;
+      font-size: .85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .bulk-apply:hover { opacity: .85; }
+    .bulk-cancel {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,.3);
+      color: rgba(255,255,255,.8);
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: .82rem;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .bulk-cancel:hover { background: rgba(255,255,255,.1); }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.2);
+      overflow: hidden;
+    }
+    .modal-header {
+      background: var(--primary);
+      color: #fff;
+      padding: 16px 20px;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .modal-body { padding: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group:last-child { margin-bottom: 0; }
+    .form-group label {
+      display: block;
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 6px;
+    }
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: .9rem;
+      color: var(--text);
+      background: var(--surface);
+      transition: border-color .15s;
+      -webkit-appearance: none;
+    }
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      padding: 0 20px 20px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      flex: 1;
+      min-width: 100px;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .88; }
+    .btn-primary   { background: var(--primary); color: #fff; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1.5px solid var(--border); }
+    .btn-danger    { background: var(--red-light); color: var(--red); border: 1.5px solid #fca5a5; }
+    .btn-success   { background: var(--green-light); color: var(--green); border: 1.5px solid var(--green-border); }
+
+    /* Duty modal */
+    .duty-name {
+      text-align: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .duty-dept {
+      text-align: center;
+      font-size: .78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 14px;
+    }
+    .duty-status-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px;
+      border-radius: 8px;
+      font-size: .85rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .duty-status-badge.not-working { background: #f3f4f6; color: var(--text-muted); }
+    .duty-status-badge.working     { background: #dbeafe; color: #1d4ed8; }
+    .duty-status-badge.on          { background: var(--green-light); color: var(--green); }
+    .duty-status-badge.off         { background: #f3f4f6; color: #6b7280; }
+    .duty-divider {
+      text-align: center;
+      font-size: .76rem;
+      color: var(--text-muted);
+      margin: 14px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .duty-divider::before, .duty-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Export/import textarea */
+    .export-textarea {
+      width: 100%;
+      height: 150px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: .75rem;
+      font-family: monospace;
+      resize: vertical;
+      color: var(--text);
+    }
+    .export-textarea:focus { outline: none; border-color: var(--primary); }
+
+    /* ── Hours Tracker ── */
+    .tracker-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .tracker-header {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .tracker-header-left h2 { font-size: 1rem; font-weight: 700; }
+    .tracker-header-left p  { font-size: .78rem; opacity: .75; margin-top: 2px; }
+    .tracker-header-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    .cycle-selector {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cycle-selector select {
+      border: 1.5px solid rgba(255,255,255,.3);
+      border-radius: 8px;
+      background: rgba(255,255,255,.12);
+      color: #fff;
+      padding: 6px 10px;
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .cycle-selector select option { background: #1e3a5f; color: #fff; }
+    .cycle-nav-btn {
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.25);
+      color: #fff;
+      border-radius: 7px;
+      width: 30px;
+      height: 30px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .9rem;
+      transition: background .15s;
+    }
+    .cycle-nav-btn:hover { background: rgba(255,255,255,.25); }
+    .tracker-action-btns {
+      display: flex;
+      gap: 6px;
+    }
+    .tracker-action-btn {
+      background: rgba(255,255,255,.13);
+      border: 1px solid rgba(255,255,255,.22);
+      color: rgba(255,255,255,.9);
+      border-radius: 7px;
+      padding: 5px 11px;
+      font-size: .75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .tracker-action-btn:hover { background: rgba(255,255,255,.22); }
+
+    .tracker-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .tracker-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .85rem;
+    }
+    .tracker-table th {
+      background: var(--surface2);
+      padding: 9px 10px;
+      text-align: left;
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .tracker-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .tracker-table tr:last-child td { border-bottom: none; }
+    .tracker-table tr:hover td { background: #fafbfc; }
+    .tracker-table tr.today td { background: #eff6ff; }
+    .tracker-table tr.today td:first-child { font-weight: 700; color: var(--primary); }
+
+    /* Day-off row */
+    .tracker-table tr.day-off td {
+      opacity: .45;
+      background: #f9fafb !important;
+    }
+
+    .time-input {
+      width: 88px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      padding: 5px 8px;
+      font-size: .84rem;
+      color: var(--text);
+      background: var(--surface);
+      transition: border-color .15s;
+    }
+    .time-input:focus { outline: none; border-color: var(--primary); }
+    .time-input::-webkit-calendar-picker-indicator { opacity: .5; cursor: pointer; }
+    .tracker-table tr.day-off .time-input { pointer-events: none; }
+
+    .day-off-btn {
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: .7rem;
+      font-weight: 600;
+      border: 1.5px solid var(--border);
+      background: var(--surface2);
+      color: var(--text-muted);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all .15s;
+    }
+    .day-off-btn.is-off {
+      background: var(--red-light);
+      border-color: #fca5a5;
+      color: var(--red);
+    }
+
+    .hours-cell {
+      font-weight: 600;
+      color: var(--text);
+      min-width: 60px;
+      text-align: right;
+    }
+    .hours-cell.has-hours { color: var(--primary); }
+    .hours-cell.empty-hours { color: var(--border); }
+
+    .tracker-footer {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .tracker-footer-label {
+      font-size: .8rem;
+      opacity: .8;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .tracker-total {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+    .tracker-total span { font-size: .75rem; font-weight: 500; opacity: .7; margin-left: 4px; }
+
+    .date-cell { white-space: nowrap; font-size: .82rem; }
+    .date-day { font-weight: 600; }
+    .date-weekday { font-size: .7rem; color: var(--text-muted); }
+
+    .tracker-table tr.week-start td { border-top: 2px solid #c7d2fe; }
+    .tracker-table tr.week-subtotal td {
+      background: #eef2ff;
+      font-weight: 700;
+      font-size: .8rem;
+      color: #3730a3;
+      border-bottom: 2px solid #c7d2fe;
+    }
+    .tracker-table tr.week-subtotal td.paid-col { color: var(--green); }
+
+    .week-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+      padding: 16px;
+    }
+    .week-summary-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .week-summary-label {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .week-summary-dates { font-size: .7rem; color: var(--text-muted); margin-bottom: 8px; }
+    .week-summary-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 3px;
+    }
+    .week-summary-row-label { font-size: .72rem; color: var(--text-muted); }
+    .week-summary-val { font-size: .92rem; font-weight: 700; color: var(--primary); }
+    .week-summary-val.paid { color: var(--green); }
+    .week-summary-val.zero { color: var(--border); font-weight: 400; }
+
+    .deduction-cell { font-size: .8rem; color: var(--red); text-align: right; white-space: nowrap; }
+    .paid-cell { font-weight: 700; color: var(--green); text-align: right; white-space: nowrap; }
+    .paid-cell.zero  { color: var(--text-muted); font-weight: 400; }
+    .paid-cell.empty { color: var(--border); font-weight: 400; }
+
+    .tracker-footer-multi {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 14px 18px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      text-align: center;
+    }
+    .footer-stat-label {
+      font-size: .65rem;
+      opacity: .7;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 4px;
+    }
+    .footer-stat-val { font-size: 1.2rem; font-weight: 800; letter-spacing: -.02em; }
+    .footer-stat-val span { font-size: .7rem; font-weight: 500; opacity: .7; margin-left: 2px; }
+    .footer-stat-val.green { color: #6ee7b7; }
+    .footer-stat-val.red   { color: #fca5a5; }
+
+    .sub-section-header {
+      background: #f1f5f9;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 9px 16px;
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #475569;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sub-section-header svg { opacity: .6; }
+
+    @media (max-width: 400px) {
+      .staff-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+      .time-input { width: 76px; font-size: .78rem; }
+      .tracker-table th, .tracker-table td { padding: 6px 7px; }
+      .tracker-footer-multi { grid-template-columns: 1fr 1fr; }
+      .bulk-bar { gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Staff Punch Card</h1>
+  <p>Housekeeping &amp; Porters</p>
+</header>
+
+<main>
+
+  <!-- Summary -->
+  <div class="summary-grid">
+    <div class="summary-box">
+      <div class="summary-label">On Duty</div>
+      <div class="summary-row">
+        <div class="summary-text" id="onDutyText"></div>
+        <button class="copy-btn" id="copyOnDuty" onclick="copyText('on')">Copy</button>
+      </div>
+    </div>
+    <div class="summary-box">
+      <div class="summary-label">Off Duty</div>
+      <div class="summary-row">
+        <div class="summary-text" id="offDutyText"></div>
+        <button class="copy-btn" id="copyOffDuty" onclick="copyText('off')">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="filter-tabs">
+      <button class="filter-tab active" data-filter="all"          onclick="setFilter('all')">All</button>
+      <button class="filter-tab"        data-filter="Housekeeping" onclick="setFilter('Housekeeping')">Housekeeping</button>
+      <button class="filter-tab"        data-filter="Porters"      onclick="setFilter('Porters')">Porters</button>
+    </div>
+    <select class="sort-select" id="sortSelect" onchange="onSortChange()">
+      <option value="default">Default order</option>
+      <option value="alpha">A–Z</option>
+      <option value="status">By status</option>
+      <option value="on-duty">On Duty first</option>
+      <option value="off-duty">Off Duty first</option>
+      <option value="working">Working first</option>
+      <option value="not-working">Not working first</option>
+    </select>
+    <button class="add-btn" id="selectModeBtn" onclick="toggleSelectMode()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Select
+    </button>
+    <button class="add-btn" onclick="openAddModal()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Staff
+    </button>
+    <button class="add-btn" style="background:#0f172a;" onclick="confirmNewDay()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      New Day
+    </button>
+  </div>
+
+  <!-- Grid -->
+  <div class="staff-grid" id="staffGrid"></div>
+
+  <!-- ── Hours Tracker ── -->
+  <div class="section-title">Monthly Hours Tracker</div>
+
+  <div class="tracker-card" style="margin-bottom:14px">
+    <div class="tracker-header">
+      <div class="tracker-header-left">
+        <h2>Work Hours</h2>
+        <p id="cycleLabel">26th – 25th Pay Cycle</p>
+      </div>
+      <div class="tracker-header-right">
+        <div class="cycle-selector">
+          <button class="cycle-nav-btn" onclick="shiftCycle(-1)" title="Previous cycle">&#8249;</button>
+          <select id="cycleSelect" onchange="onCycleChange()"></select>
+          <button class="cycle-nav-btn" onclick="shiftCycle(1)"  title="Next cycle">&#8250;</button>
+        </div>
+        <div class="tracker-action-btns">
+          <button class="tracker-action-btn" onclick="exportHours()">&#8593; Export</button>
+          <button class="tracker-action-btn" onclick="openImport()">&#8595; Import</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Daily gross hours table -->
+    <div class="sub-section-header">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Daily Hours
+    </div>
+    <div class="tracker-table-wrap">
+      <table class="tracker-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>On Duty</th>
+            <th>Off Duty</th>
+            <th style="text-align:right">Gross Hrs</th>
+            <th>Day Off</th>
+          </tr>
+        </thead>
+        <tbody id="trackerBody"></tbody>
+      </table>
+    </div>
+    <div class="tracker-footer">
+      <div class="tracker-footer-label">Total Gross Hours</div>
+      <div class="tracker-total" id="trackerTotal">0<span>hrs</span></div>
+    </div>
+  </div>
+
+  <!-- Weekly summary -->
+  <div class="tracker-card" style="margin-bottom:14px">
+    <div class="sub-section-header" style="border-top:none">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 3h18v18H3z"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+      Weekly Summary
+    </div>
+    <div class="week-summary-grid" id="weeklySummary"></div>
+  </div>
+
+  <!-- Paid hours -->
+  <div class="tracker-card">
+    <div class="sub-section-header" style="border-top:none">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      Paid Hours  <span style="font-weight:400;font-size:.72rem;color:var(--text-muted);text-transform:none;letter-spacing:0">(gross − 0.5 h lunch per worked day)</span>
+    </div>
+    <div class="tracker-table-wrap">
+      <table class="tracker-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th style="text-align:right">Gross</th>
+            <th style="text-align:right">Lunch</th>
+            <th style="text-align:right">Paid</th>
+          </tr>
+        </thead>
+        <tbody id="paidBody"></tbody>
+      </table>
+    </div>
+    <div class="tracker-footer-multi" id="paidFooter">
+      <div>
+        <div class="footer-stat-label">Total Gross</div>
+        <div class="footer-stat-val" id="paidTotalGross">0<span>hrs</span></div>
+      </div>
+      <div>
+        <div class="footer-stat-label">Lunch Deducted</div>
+        <div class="footer-stat-val red" id="paidTotalLunch">0<span>hrs</span></div>
+      </div>
+      <div>
+        <div class="footer-stat-label">Total Paid</div>
+        <div class="footer-stat-val green" id="paidTotalPaid">0<span>hrs</span></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── Bulk action bar ── -->
+<div class="bulk-bar" id="bulkBar">
+  <div class="bulk-count" id="bulkCount">0 selected</div>
+  <input type="time" class="bulk-time" id="bulkTime" value="08:00" />
+  <button class="bulk-shortcut" onclick="setBulkTime('08:00')">08:00</button>
+  <button class="bulk-shortcut" onclick="setBulkTime('16:00')">16:00</button>
+  <button class="bulk-apply" onclick="applyBulkOnDuty()">Set On Duty</button>
+  <button class="bulk-cancel" onclick="exitSelectMode()">Cancel</button>
+</div>
+
+<!-- ── Add/Edit Staff Modal ── -->
+<div class="modal-overlay" id="staffModal">
+  <div class="modal">
+    <div class="modal-header" id="staffModalTitle">Add Staff Member</div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" id="staffName" placeholder="Full name" />
+      </div>
+      <div class="form-group">
+        <label>Department</label>
+        <select id="staffDept">
+          <option value="Housekeeping">Housekeeping</option>
+          <option value="Porters">Porters</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Photo URL <span style="font-weight:400;font-size:.78rem;">(optional)</span></label>
+        <input type="url" id="staffPhoto" placeholder="https://..." />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('staffModal')">Cancel</button>
+      <button class="btn btn-primary" id="staffSaveBtn" onclick="saveStaff()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Duty Modal ── -->
+<div class="modal-overlay" id="dutyModal">
+  <div class="modal">
+    <div class="modal-header" id="dutyModalTitle">Set Duty Status</div>
+    <div class="modal-body" id="dutyModalBody"></div>
+    <div class="modal-footer" id="dutyFooter"></div>
+  </div>
+</div>
+
+<!-- ── Delete Confirm Modal ── -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-header" style="background:#dc2626;">Remove Staff Member</div>
+    <div class="modal-body">
+      <p style="font-size:.9rem;line-height:1.6;">Are you sure you want to remove <strong id="deleteName"></strong>? This cannot be undone.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
+      <button class="btn btn-danger"    onclick="confirmDelete()">Remove</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── New Day Confirm Modal ── -->
+<div class="modal-overlay" id="newDayModal">
+  <div class="modal">
+    <div class="modal-header" style="background:#0f172a;">Start New Day</div>
+    <div class="modal-body">
+      <p style="font-size:.9rem;line-height:1.6;">This will reset <strong>all staff</strong> back to <em>Not working today</em> and clear the On Duty and Off Duty lists.</p>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-top:10px;">This cannot be undone.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('newDayModal')">Cancel</button>
+      <button class="btn btn-primary" style="background:#0f172a;" onclick="doNewDay()">Start New Day</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Export Modal ── -->
+<div class="modal-overlay" id="exportModal">
+  <div class="modal">
+    <div class="modal-header">Export Hours Data</div>
+    <div class="modal-body">
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:10px;">Copy this text and save it somewhere safe.</p>
+      <textarea class="export-textarea" id="exportTextarea" readonly></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('exportModal')">Close</button>
+      <button class="btn btn-primary"   onclick="copyExport()">Copy All</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Import Modal ── -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal">
+    <div class="modal-header">Import Hours Data</div>
+    <div class="modal-body">
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:10px;">Paste previously exported data below. Existing entries will be merged (not replaced).</p>
+      <textarea class="export-textarea" id="importTextarea" placeholder="Paste exported JSON here…"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('importModal')">Cancel</button>
+      <button class="btn btn-primary"   onclick="doImport()">Import</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// PUNCH CARD
+// ═══════════════════════════════════════════════════════════════
+
+const DEFAULT_STAFF = [
+  { dept: 'Housekeeping', names: ['Sinazo','Nwabisa','Eliza','Nosipiwo 2','Zikhona','Nosi','Bellivia','Pumza','Deborah','Ester','Nolisindiso','Namhla','Nosiphiwo','Patricia'] },
+  { dept: 'Porters',      names: ['Owen','Andre','Moffat','David','Chris','Aphiwe','Danmore','Olwethu'] },
+];
+
+// status values: 'not-working' | 'working' | 'on-duty' | 'off-duty'
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+function nowTime() {
+  const d = new Date();
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+let staff = JSON.parse(localStorage.getItem('punchcard_staff') || 'null');
+if (!staff) {
+  staff = [];
+  for (const group of DEFAULT_STAFF) {
+    for (const name of group.names) {
+      staff.push({ id: uid(), name, dept: group.dept, photo: '',
+                   status: 'not-working', startTime: '', endTime: '' });
+    }
+  }
+  localStorage.setItem('punchcard_staff', JSON.stringify(staff));
+} else {
+  // Migrate old records that used onDuty boolean
+  staff.forEach(s => {
+    if (s.status === undefined) {
+      if (s.onDuty)        s.status = 'on-duty';
+      else if (s.endTime)  s.status = 'off-duty';
+      else                 s.status = 'not-working';
+      delete s.onDuty;
+    }
+  });
+}
+
+let filter       = 'all';
+let editId       = null;
+let deleteTarget = null;
+let dutyTarget   = null;
+
+// Sort
+const STATUS_RANK = { 'on-duty': 0, 'working': 1, 'off-duty': 2, 'not-working': 3 };
+let sortOrder = localStorage.getItem('punchcard_sort') || 'default';
+
+// Multi-select
+let selectMode  = false;
+let selectedIds = new Set();
+
+function saveStaffData() {
+  localStorage.setItem('punchcard_staff', JSON.stringify(staff));
+}
+
+// ── Avatar ────────────────────────────────────────────────────
+const COLOURS = ['#2563eb','#7c3aed','#db2777','#d97706','#16a34a','#0891b2','#9333ea','#ea580c'];
+function avatarColour(name) {
+  let n = 0; for (const c of name) n += c.charCodeAt(0);
+  return COLOURS[n % COLOURS.length];
+}
+function initials(name) {
+  return name.trim().split(/\s+/).map(w => w[0] || '').join('').toUpperCase().slice(0, 2) || '?';
+}
+
+// ── Sort ──────────────────────────────────────────────────────
+function sortedVisible(arr) {
+  const copy = [...arr];
+  if (sortOrder === 'alpha') {
+    copy.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (sortOrder === 'status') {
+    copy.sort((a, b) => (STATUS_RANK[a.status] ?? 4) - (STATUS_RANK[b.status] ?? 4));
+  } else if (sortOrder === 'on-duty') {
+    copy.sort((a, b) => (a.status === 'on-duty' ? 0 : 1) - (b.status === 'on-duty' ? 0 : 1));
+  } else if (sortOrder === 'off-duty') {
+    copy.sort((a, b) => (a.status === 'off-duty' ? 0 : 1) - (b.status === 'off-duty' ? 0 : 1));
+  } else if (sortOrder === 'working') {
+    copy.sort((a, b) => (a.status === 'working' ? 0 : 1) - (b.status === 'working' ? 0 : 1));
+  } else if (sortOrder === 'not-working') {
+    copy.sort((a, b) => (a.status === 'not-working' ? 0 : 1) - (b.status === 'not-working' ? 0 : 1));
+  }
+  return copy;
+}
+
+function onSortChange() {
+  sortOrder = document.getElementById('sortSelect').value;
+  localStorage.setItem('punchcard_sort', sortOrder);
+  render();
+}
+
+// ── Render ────────────────────────────────────────────────────
+function render() {
+  const grid    = document.getElementById('staffGrid');
+  const raw     = filter === 'all' ? staff : staff.filter(s => s.dept === filter);
+  const visible = sortedVisible(raw);
+
+  if (visible.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <p>${staff.length === 0 ? 'No staff yet. Click <strong>Add Staff</strong> to get started.' : 'No staff in this department.'}</p>
+      </div>`;
+  } else {
+    grid.innerHTML = visible.map(s => cardHTML(s)).join('');
+  }
+
+  // Restore sort select
+  document.getElementById('sortSelect').value = sortOrder;
+
+  updateSummary();
+}
+
+function cardClass(s) {
+  if (s.status === 'on-duty')  return 'on-duty';
+  if (s.status === 'off-duty') return 'off-duty-done';
+  if (s.status === 'working')  return 'working-today';
+  return 'not-working';
+}
+
+function statusLabel(s) {
+  if (s.status === 'on-duty')  return 'On Duty';
+  if (s.status === 'off-duty') return 'Off Duty';
+  if (s.status === 'working')  return 'Working Today';
+  return 'Not Working';
+}
+
+function cardHTML(s) {
+  const cls        = cardClass(s);
+  const isWorking  = s.status === 'working';
+  const isOnDuty   = s.status === 'on-duty';
+  const isOffDuty  = s.status === 'off-duty';
+  const notWorking = s.status === 'not-working';
+  const canSetDuty = isWorking || isOnDuty || isOffDuty;
+
+  // In select mode only 'working' cards are selectable
+  const isSelectable = selectMode && isWorking;
+  const isSelected   = isSelectable && selectedIds.has(s.id);
+
+  const selCls = isSelectable ? ' selectable' : '';
+  const selSel = isSelected   ? ' selected'   : '';
+
+  const selectCheck = selectMode ? `
+    <div class="select-check">
+      ${isSelected ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+    </div>` : '';
+
+  const avatarInner = s.photo
+    ? `<img src="${esc(s.photo)}" alt="${esc(s.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+    : '';
+  const fallback = `<span style="display:${s.photo ? 'none' : 'flex'};width:100%;height:100%;align-items:center;justify-content:center;">${esc(initials(s.name))}</span>`;
+
+  return `
+  <div class="card ${cls}${selCls}${selSel}" onclick="handleCardClick('${s.id}')">
+    ${selectCheck}
+    <div class="card-actions" onclick="event.stopPropagation()">
+      <div class="icon-btn edit" onclick="openEditModal('${s.id}')" title="Edit">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </div>
+      <div class="icon-btn" onclick="openDeleteModal('${s.id}')" title="Remove">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </div>
+    </div>
+    <div class="avatar" style="background:${avatarColour(s.name)}">
+      ${avatarInner}${fallback}
+      <div class="status-dot"></div>
+    </div>
+    <div class="card-name">${esc(s.name)}</div>
+    <div class="card-dept">${esc(s.dept)}</div>
+    <div class="card-status">
+      <svg width="8" height="8" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="currentColor"/></svg>
+      ${statusLabel(s)}
+    </div>
+    ${isOnDuty  && s.startTime ? `<div class="card-time">Since ${esc(s.startTime)}</div>` : ''}
+    ${isOffDuty && s.endTime   ? `<div class="card-time">Left at ${esc(s.endTime)}</div>` : ''}
+    <div class="card-working-toggle" onclick="event.stopPropagation()">
+      <button class="working-toggle-btn ${notWorking ? '' : 'active'}"
+              onclick="toggleWorking('${s.id}')">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        ${notWorking ? 'Working today?' : 'Working today'}
+      </button>
+    </div>
+  </div>`;
+}
+
+function esc(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Card click handler ────────────────────────────────────────
+function handleCardClick(id) {
+  if (selectMode) {
+    const s = staff.find(x => x.id === id);
+    if (!s || s.status !== 'working') return; // only working cards selectable
+    if (selectedIds.has(id)) selectedIds.delete(id);
+    else                     selectedIds.add(id);
+    updateBulkBar();
+    render();
+  } else {
+    const s = staff.find(x => x.id === id);
+    if (s && (s.status === 'working' || s.status === 'on-duty' || s.status === 'off-duty')) {
+      openDutyModal(id);
+    }
+  }
+}
+
+// ── Multi-select ──────────────────────────────────────────────
+function toggleSelectMode() {
+  selectMode = !selectMode;
+  selectedIds.clear();
+  const btn = document.getElementById('selectModeBtn');
+  if (selectMode) {
+    btn.classList.add('select-active');
+    btn.querySelector('svg').setAttribute('stroke','currentColor');
+  } else {
+    btn.classList.remove('select-active');
+  }
+  updateBulkBar();
+  render();
+}
+
+function exitSelectMode() {
+  selectMode = false;
+  selectedIds.clear();
+  document.getElementById('selectModeBtn').classList.remove('select-active');
+  updateBulkBar();
+  render();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulkBar');
+  const cnt = document.getElementById('bulkCount');
+  if (selectMode) {
+    bar.classList.add('open');
+    cnt.textContent = selectedIds.size === 0
+      ? 'Tap working staff to select'
+      : `${selectedIds.size} selected`;
+  } else {
+    bar.classList.remove('open');
+  }
+}
+
+function setBulkTime(t) {
+  document.getElementById('bulkTime').value = t;
+}
+
+function applyBulkOnDuty() {
+  if (selectedIds.size === 0) return;
+  const time = document.getElementById('bulkTime').value || nowTime();
+  selectedIds.forEach(id => {
+    const s = staff.find(x => x.id === id);
+    if (s && s.status === 'working') {
+      s.status    = 'on-duty';
+      s.startTime = time;
+      s.endTime   = '';
+    }
+  });
+  saveStaffData();
+  exitSelectMode();
+}
+
+// ── Summary ───────────────────────────────────────────────────
+function groupByTime(arr, key) {
+  const map = {};
+  for (const s of arr) {
+    const t = s[key] || 'unknown';
+    if (!map[t]) map[t] = [];
+    map[t].push(s.name);
+  }
+  return map;
+}
+
+function updateSummary() {
+  const onStaff  = staff.filter(s => s.status === 'on-duty');
+  const offStaff = staff.filter(s => s.status === 'off-duty');
+
+  const onEl  = document.getElementById('onDutyText');
+  const offEl = document.getElementById('offDutyText');
+
+  if (onStaff.length === 0) {
+    onEl.textContent = 'No staff currently on duty.';
+    onEl.classList.add('empty');
+  } else {
+    const groups = groupByTime(onStaff, 'startTime');
+    onEl.textContent = Object.entries(groups)
+      .map(([t, names]) => `On duty: ${names.join(', ')} at ${t}`)
+      .join(' | ');
+    onEl.classList.remove('empty');
+  }
+
+  if (offStaff.length === 0) {
+    offEl.textContent = 'No staff marked off duty.';
+    offEl.classList.add('empty');
+  } else {
+    const groups = groupByTime(offStaff, 'endTime');
+    offEl.textContent = Object.entries(groups)
+      .map(([t, names]) => `Off duty: ${names.join(', ')} at ${t}`)
+      .join(' | ');
+    offEl.classList.remove('empty');
+  }
+}
+
+function copyText(type) {
+  const el  = document.getElementById(type === 'on' ? 'onDutyText'  : 'offDutyText');
+  const btn = document.getElementById(type === 'on' ? 'copyOnDuty'  : 'copyOffDuty');
+  if (el.classList.contains('empty')) return;
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+// ── Working Today toggle ──────────────────────────────────────
+function toggleWorking(id) {
+  const s = staff.find(x => x.id === id);
+  if (!s) return;
+  if (s.status === 'not-working') {
+    s.status = 'working';
+  } else if (s.status === 'working') {
+    s.status = 'not-working';
+    s.startTime = ''; s.endTime = '';
+    selectedIds.delete(id);
+    updateBulkBar();
+  }
+  saveStaffData();
+  render();
+}
+
+// ── New Day ───────────────────────────────────────────────────
+function confirmNewDay() { openModal('newDayModal'); }
+function doNewDay() {
+  staff.forEach(s => { s.status = 'not-working'; s.startTime = ''; s.endTime = ''; });
+  selectedIds.clear();
+  if (selectMode) exitSelectMode();
+  saveStaffData();
+  closeModal('newDayModal');
+  render();
+}
+
+// ── Filter ────────────────────────────────────────────────────
+function setFilter(f) {
+  filter = f;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
+  render();
+}
+
+// ── Add / Edit Modal ──────────────────────────────────────────
+function openAddModal() {
+  editId = null;
+  document.getElementById('staffModalTitle').textContent = 'Add Staff Member';
+  document.getElementById('staffSaveBtn').textContent    = 'Add';
+  document.getElementById('staffName').value  = '';
+  document.getElementById('staffDept').value  = 'Housekeeping';
+  document.getElementById('staffPhoto').value = '';
+  openModal('staffModal');
+  setTimeout(() => document.getElementById('staffName').focus(), 80);
+}
+
+function openEditModal(id) {
+  const s = staff.find(x => x.id === id);
+  if (!s) return;
+  editId = id;
+  document.getElementById('staffModalTitle').textContent = 'Edit Staff Member';
+  document.getElementById('staffSaveBtn').textContent    = 'Save';
+  document.getElementById('staffName').value  = s.name;
+  document.getElementById('staffDept').value  = s.dept;
+  document.getElementById('staffPhoto').value = s.photo || '';
+  openModal('staffModal');
+  setTimeout(() => document.getElementById('staffName').focus(), 80);
+}
+
+function saveStaff() {
+  const name  = document.getElementById('staffName').value.trim();
+  const dept  = document.getElementById('staffDept').value;
+  const photo = document.getElementById('staffPhoto').value.trim();
+  if (!name) { document.getElementById('staffName').focus(); return; }
+
+  if (editId) {
+    const s = staff.find(x => x.id === editId);
+    if (s) { s.name = name; s.dept = dept; s.photo = photo; }
+  } else {
+    staff.push({ id: uid(), name, dept, photo, status: 'not-working', startTime: '', endTime: '' });
+  }
+  saveStaffData();
+  closeModal('staffModal');
+  render();
+}
+
+// ── Delete Modal ──────────────────────────────────────────────
+function openDeleteModal(id) {
+  deleteTarget = id;
+  const s = staff.find(x => x.id === id);
+  document.getElementById('deleteName').textContent = s ? s.name : '';
+  openModal('deleteModal');
+}
+
+function confirmDelete() {
+  staff = staff.filter(x => x.id !== deleteTarget);
+  selectedIds.delete(deleteTarget);
+  saveStaffData();
+  closeModal('deleteModal');
+  render();
+}
+
+// ── Duty Modal ────────────────────────────────────────────────
+const dot = '<svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="currentColor"/></svg> ';
+
+function openDutyModal(id) {
+  const s = staff.find(x => x.id === id);
+  if (!s || s.status === 'not-working') return;
+  dutyTarget = id;
+
+  const body   = document.getElementById('dutyModalBody');
+  const footer = document.getElementById('dutyFooter');
+  const title  = document.getElementById('dutyModalTitle');
+
+  const nameRow = `<div class="duty-name">${esc(s.name)}</div><div class="duty-dept">${esc(s.dept)}</div>`;
+
+  if (s.status === 'working') {
+    title.textContent = 'Set On Duty';
+    body.innerHTML = `
+      ${nameRow}
+      <div class="duty-status-badge working">${dot}Working today — not yet on duty</div>
+      <div class="form-group">
+        <label>Start Time</label>
+        <input type="time" id="dutyTime" value="${nowTime()}" />
+      </div>`;
+    footer.innerHTML = `
+      <button class="btn btn-secondary" onclick="closeModal('dutyModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="setOnDuty()">Set On Duty</button>`;
+
+  } else if (s.status === 'on-duty') {
+    title.textContent = 'Duty Options';
+    body.innerHTML = `
+      ${nameRow}
+      <div class="duty-status-badge on">${dot}Currently On Duty since ${esc(s.startTime || '—')}</div>
+      <div class="form-group">
+        <label>Correct Start Time</label>
+        <input type="time" id="dutyStartEdit" value="${esc(s.startTime)}" />
+      </div>
+      <div class="duty-divider">or</div>
+      <div class="form-group">
+        <label>Clock-Out Time</label>
+        <input type="time" id="dutyTime" value="${nowTime()}" />
+      </div>`;
+    footer.innerHTML = `
+      <button class="btn btn-secondary" onclick="closeModal('dutyModal')">Cancel</button>
+      <button class="btn btn-success" onclick="saveStartTime()">Update Start</button>
+      <button class="btn btn-danger"  onclick="setOffDuty()">Set Off Duty</button>`;
+
+  } else if (s.status === 'off-duty') {
+    title.textContent = 'Already Off Duty';
+    body.innerHTML = `
+      ${nameRow}
+      <div class="duty-status-badge off">${dot}Clocked out at ${esc(s.endTime || '—')}</div>
+      <div class="form-group">
+        <label>Correct Off-Duty Time</label>
+        <input type="time" id="dutyTime" value="${esc(s.endTime || nowTime())}" />
+      </div>`;
+    footer.innerHTML = `
+      <button class="btn btn-secondary" onclick="closeModal('dutyModal')">Close</button>
+      <button class="btn btn-danger"    onclick="setOffDuty()">Update Time</button>`;
+  }
+
+  openModal('dutyModal');
+}
+
+function saveStartTime() {
+  const s = staff.find(x => x.id === dutyTarget);
+  if (!s) return;
+  const input = document.getElementById('dutyStartEdit');
+  if (input && input.value) s.startTime = input.value;
+  saveStaffData();
+  closeModal('dutyModal');
+  render();
+}
+
+function setOnDuty() {
+  const s = staff.find(x => x.id === dutyTarget);
+  if (!s) return;
+  s.status    = 'on-duty';
+  s.startTime = document.getElementById('dutyTime').value;
+  s.endTime   = '';
+  saveStaffData(); closeModal('dutyModal'); render();
+}
+
+function setOffDuty() {
+  const s = staff.find(x => x.id === dutyTarget);
+  if (!s) return;
+  s.status  = 'off-duty';
+  s.endTime = document.getElementById('dutyTime').value;
+  saveStaffData(); closeModal('dutyModal'); render();
+}
+
+// ── Modal helpers ─────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+});
+document.getElementById('staffName').addEventListener('keydown', e => { if (e.key === 'Enter') saveStaff(); });
+
+
+// ═══════════════════════════════════════════════════════════════
+// HOURS TRACKER
+// ═══════════════════════════════════════════════════════════════
+
+// hoursData: { "YYYY-MM": { "YYYY-MM-DD": { on:"HH:MM", off:"HH:MM", offDay?:true } } }
+let hoursData = JSON.parse(localStorage.getItem('punchcard_hours') || '{}');
+
+function saveHours() {
+  localStorage.setItem('punchcard_hours', JSON.stringify(hoursData));
+}
+
+function buildCycleOptions() {
+  const sel   = document.getElementById('cycleSelect');
+  const today = new Date();
+  const opts  = [];
+  for (let delta = -12; delta <= 12; delta++) {
+    const d   = new Date(today.getFullYear(), today.getMonth() + delta, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`;
+    opts.push(key);
+  }
+  sel.innerHTML = opts.map(k => `<option value="${k}">${cycleLabel(k)}</option>`).join('');
+  sel.value = currentCycleKey();
+}
+
+function currentCycleKey() {
+  const today = new Date();
+  if (today.getDate() >= 26) {
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2,'0')}`;
+  }
+  const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2,'0')}`;
+}
+
+function cycleLabel(key) {
+  const [y, m] = key.split('-').map(Number);
+  const start  = new Date(y, m - 1, 26);
+  const end    = new Date(y, m, 25);
+  return `26 ${MONTHS[start.getMonth()]} – 25 ${MONTHS[end.getMonth()]} ${end.getFullYear()}`;
+}
+
+function cycleDays(key) {
+  const [y, m] = key.split('-').map(Number);
+  const start  = new Date(y, m - 1, 26);
+  const end    = new Date(y, m, 25);
+  const days   = [];
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    days.push(new Date(d));
+  }
+  return days;
+}
+
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+
+const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function formatDate(date) { return `${date.getDate()} ${MONTHS[date.getMonth()]}`; }
+
+function roundHalf(minutes) { return Math.round(minutes / 30) * 0.5; }
+
+function calcHours(onVal, offVal) {
+  if (!onVal || !offVal) return null;
+  const [oh, om] = onVal.split(':').map(Number);
+  const [fh, fm] = offVal.split(':').map(Number);
+  let totalMin   = (fh * 60 + fm) - (oh * 60 + om);
+  if (totalMin <= 0) totalMin += 24 * 60;
+  return roundHalf(totalMin);
+}
+
+function calcPaid(gross) {
+  if (gross === null) return null;
+  return Math.max(0, gross - 0.5);
+}
+
+function hCell(h) {
+  if (h === null) return '<span style="color:var(--border)">—</span>';
+  return `${h}<small style="font-size:.7rem;font-weight:400;color:var(--text-muted)"> h</small>`;
+}
+
+function splitWeeks(days) {
+  const weeks = [];
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
+  return weeks;
+}
+
+let currentCycle = currentCycleKey();
+
+function renderTracker() {
+  const days    = cycleDays(currentCycle);
+  const weeks   = splitWeeks(days);
+  const today   = dateKey(new Date());
+  const cycData = hoursData[currentCycle] || {};
+
+  document.getElementById('cycleLabel').textContent = cycleLabel(currentCycle);
+
+  // ── 1. Daily gross table ──────────────────────────────────
+  let cycleGross = 0;
+  const dailyRows = [];
+
+  weeks.forEach((week, wi) => {
+    let weekGross = 0;
+    week.forEach((date, di) => {
+      const dk     = dateKey(date);
+      const row    = cycData[dk] || { on: '', off: '' };
+      const isOff  = !!row.offDay;
+      const gross  = isOff ? null : calcHours(row.on, row.off);
+      if (gross !== null) { weekGross += gross; cycleGross += gross; }
+      const isFirst = wi > 0 && di === 0;
+      dailyRows.push(`
+        <tr class="${dk === today ? 'today' : ''}${isFirst ? ' week-start' : ''}${isOff ? ' day-off' : ''}">
+          <td class="date-cell">
+            <div class="date-day">${formatDate(date)}</div>
+            <div class="date-weekday">${WEEKDAYS[date.getDay()]}</div>
+          </td>
+          <td><input class="time-input" type="time" value="${esc(row.on)}"
+                onblur="saveTimeEntry('${currentCycle}','${dk}','on',this.value)"></td>
+          <td><input class="time-input" type="time" value="${esc(row.off)}"
+                onblur="saveTimeEntry('${currentCycle}','${dk}','off',this.value)"></td>
+          <td class="hours-cell ${gross !== null ? 'has-hours' : 'empty-hours'}">${isOff ? '<span style="color:var(--text-muted);font-size:.75rem;font-weight:600">Day Off</span>' : hCell(gross)}</td>
+          <td><button class="day-off-btn ${isOff ? 'is-off' : ''}" onclick="toggleDayOff('${currentCycle}','${dk}')">${isOff ? 'Remove' : 'Day Off'}</button></td>
+        </tr>`);
+    });
+    dailyRows.push(`
+      <tr class="week-subtotal">
+        <td colspan="4" style="text-align:right;padding-right:14px">Week ${wi + 1} total</td>
+        <td class="hours-cell" style="color:#3730a3;text-align:right">
+          ${weekGross > 0 ? `${weekGross}<small style="font-size:.7rem;font-weight:400;opacity:.7"> h</small>` : '<span style="color:var(--border)">—</span>'}
+        </td>
+      </tr>`);
+  });
+
+  document.getElementById('trackerBody').innerHTML = dailyRows.join('');
+  document.getElementById('trackerTotal').innerHTML = `${cycleGross}<span>hrs</span>`;
+
+  // ── 2. Weekly summary cards ───────────────────────────────
+  document.getElementById('weeklySummary').innerHTML = weeks.map((week, wi) => {
+    let wGross = 0, wPaid = 0;
+    week.forEach(date => {
+      const row  = cycData[dateKey(date)] || {};
+      if (row.offDay) return;
+      const gross = calcHours(row.on, row.off);
+      if (gross !== null) { wGross += gross; wPaid += calcPaid(gross); }
+    });
+    const startLbl = formatDate(week[0]);
+    const endLbl   = formatDate(week[week.length - 1]);
+    return `
+      <div class="week-summary-item">
+        <div class="week-summary-label">Week ${wi + 1}</div>
+        <div class="week-summary-dates">${startLbl} – ${endLbl}</div>
+        <div class="week-summary-row">
+          <span class="week-summary-row-label">Gross</span>
+          <span class="week-summary-val ${wGross === 0 ? 'zero' : ''}">${wGross}<small style="font-size:.7rem;font-weight:400"> h</small></span>
+        </div>
+        <div class="week-summary-row">
+          <span class="week-summary-row-label">Paid</span>
+          <span class="week-summary-val paid ${wPaid === 0 ? 'zero' : ''}">${wPaid}<small style="font-size:.7rem;font-weight:400"> h</small></span>
+        </div>
+      </div>`;
+  }).join('');
+
+  // ── 3. Paid hours table ───────────────────────────────────
+  let totalGross = 0, totalLunch = 0, totalPaid = 0;
+  const paidRows = [];
+
+  weeks.forEach((week, wi) => {
+    let wGross = 0, wLunch = 0, wPaid = 0;
+    week.forEach((date, di) => {
+      const dk    = dateKey(date);
+      const row   = cycData[dk] || { on: '', off: '' };
+      const isOff = !!row.offDay;
+      const gross  = isOff ? null : calcHours(row.on, row.off);
+      const worked = gross !== null;
+      const lunch  = worked ? 0.5 : 0;
+      const paid   = worked ? calcPaid(gross) : null;
+      if (worked) {
+        wGross += gross; wLunch += lunch; wPaid += paid;
+        totalGross += gross; totalLunch += lunch; totalPaid += paid;
+      }
+      const isFirst = wi > 0 && di === 0;
+      paidRows.push(`
+        <tr class="${dk === today ? 'today' : ''}${isFirst ? ' week-start' : ''}${isOff ? ' day-off' : ''}">
+          <td class="date-cell">
+            <div class="date-day">${formatDate(date)}</div>
+            <div class="date-weekday">${WEEKDAYS[date.getDay()]}</div>
+          </td>
+          <td class="hours-cell ${gross !== null ? 'has-hours' : 'empty-hours'}">${isOff ? '<span style="color:var(--text-muted);font-size:.75rem;font-weight:600">Day Off</span>' : hCell(gross)}</td>
+          <td class="deduction-cell">
+            ${worked ? `−0.5<small style="font-size:.7rem;font-weight:400"> h</small>` : '<span style="color:var(--border)">—</span>'}
+          </td>
+          <td class="paid-cell ${paid === null ? 'empty' : paid === 0 ? 'zero' : ''}">
+            ${paid === null
+              ? '<span style="color:var(--border)">—</span>'
+              : `${paid}<small style="font-size:.7rem;font-weight:400;color:inherit"> h</small>`}
+          </td>
+        </tr>`);
+    });
+    paidRows.push(`
+      <tr class="week-subtotal">
+        <td colspan="2" style="text-align:right;padding-right:14px">Week ${wi + 1} total</td>
+        <td class="deduction-cell" style="color:#9f1239">
+          ${wLunch > 0 ? `−${wLunch}<small style="font-size:.7rem;font-weight:400"> h</small>` : '<span style="color:var(--border)">—</span>'}
+        </td>
+        <td class="paid-col" style="text-align:right;font-weight:700;color:var(--green)">
+          ${wPaid > 0 ? `${wPaid}<small style="font-size:.7rem;font-weight:400;opacity:.7"> h</small>` : '<span style="color:var(--border)">—</span>'}
+        </td>
+      </tr>`);
+  });
+
+  document.getElementById('paidBody').innerHTML = paidRows.join('');
+  document.getElementById('paidTotalGross').innerHTML = `${totalGross}<span>hrs</span>`;
+  document.getElementById('paidTotalLunch').innerHTML = `−${totalLunch}<span>hrs</span>`;
+  document.getElementById('paidTotalPaid').innerHTML  = `${totalPaid}<span>hrs</span>`;
+}
+
+function saveTimeEntry(cycle, dk, field, value) {
+  if (!hoursData[cycle])     hoursData[cycle]     = {};
+  if (!hoursData[cycle][dk]) hoursData[cycle][dk] = { on: '', off: '' };
+  hoursData[cycle][dk][field] = value;
+  saveHours();
+  renderTracker();
+}
+
+function toggleDayOff(cycle, dk) {
+  if (!hoursData[cycle])     hoursData[cycle]     = {};
+  if (!hoursData[cycle][dk]) hoursData[cycle][dk] = { on: '', off: '' };
+  const row = hoursData[cycle][dk];
+  if (row.offDay) {
+    delete row.offDay;
+  } else {
+    row.offDay = true;
+    row.on  = '';
+    row.off = '';
+  }
+  saveHours();
+  renderTracker();
+}
+
+function onCycleChange() {
+  currentCycle = document.getElementById('cycleSelect').value;
+  renderTracker();
+}
+
+function shiftCycle(delta) {
+  const sel  = document.getElementById('cycleSelect');
+  const opts = Array.from(sel.options).map(o => o.value);
+  const idx  = opts.indexOf(currentCycle);
+  const next = idx + delta;
+  if (next < 0 || next >= opts.length) return;
+  currentCycle = opts[next];
+  sel.value    = currentCycle;
+  renderTracker();
+}
+
+// ── Export / Import ───────────────────────────────────────────
+function exportHours() {
+  const payload = JSON.stringify({
+    _type:     'punchcard-hours-export',
+    _version:  1,
+    _exported: new Date().toISOString(),
+    data:      hoursData
+  }, null, 2);
+  document.getElementById('exportTextarea').value = payload;
+  openModal('exportModal');
+}
+
+function copyExport() {
+  const ta = document.getElementById('exportTextarea');
+  ta.select();
+  navigator.clipboard.writeText(ta.value).then(() => {
+    const btn = document.querySelector('#exportModal .btn-primary');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy All'; }, 1800);
+  });
+}
+
+function openImport() {
+  document.getElementById('importTextarea').value = '';
+  openModal('importModal');
+}
+
+function doImport() {
+  const raw = document.getElementById('importTextarea').value.trim();
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch(e) {
+    alert('Invalid JSON — please paste the full exported text.');
+    return;
+  }
+  if (!parsed || parsed._type !== 'punchcard-hours-export' || !parsed.data) {
+    alert('This does not look like a valid hours export file.');
+    return;
+  }
+  // Merge: per-date granularity so other cycles survive
+  for (const [cycle, days] of Object.entries(parsed.data)) {
+    if (!hoursData[cycle]) hoursData[cycle] = {};
+    for (const [dk, val] of Object.entries(days)) {
+      hoursData[cycle][dk] = val;
+    }
+  }
+  saveHours();
+  closeModal('importModal');
+  renderTracker();
+}
+
+// ── Init ──────────────────────────────────────────────────────
+document.getElementById('sortSelect').value = sortOrder;
+render();
+buildCycleOptions();
+renderTracker();
+</script>
+</body>
+</html>
